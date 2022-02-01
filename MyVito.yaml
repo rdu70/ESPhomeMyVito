@@ -98,20 +98,19 @@ sensor:
     lambda: |-
       auto my_vito = new MyVitoSensorsComponent();
       App.register_component(my_vito);
-      return {my_vito->HeaterTemperature_sensor, my_vito->BoilerTemperature_sensor, 
-              my_vito->ExternalTemperature_sensor, my_vito->ExternalMeanTemperature_sensor,
-              my_vito->AmbiantTemperature_sensor,
-              my_vito->HWGPump_sensor, my_vito->HeatingPump_sensor,
-              my_vito->BurnerON_sensor, my_vito->BurnerDefault_sensor,
-              my_vito->BurnerTimeCounter_sensor, my_vito->BurnerConsumeCounter_sensor, my_vito->BurnerStartCounter_sensor,
-              my_vito->HeaterMode_sensor, my_vito->HeaterDefault_sensor,
-              my_vito->HeaterEco_sensor, my_vito->HeateReception_sensor,
-              my_vito->HWCirculatingPump_sensor,
-              my_vito->NormalSetTemperature_sensor,
-              my_vito->ReducedSetTemperature_sensor,
-              my_vito->ReceptionSetTemperature_sensor};
-
-
+      return { my_vito->HeaterTemperature_sensor,
+               my_vito->BoilerTemperature_sensor,
+               my_vito->ExternalTemperature_sensor,
+               my_vito->ExternalMeanTemperature_sensor,
+               my_vito->AmbiantTemperature_sensor,
+               my_vito->BurnerTimeCounter_sensor,
+               my_vito->BurnerConsumeCounter_sensor,
+               my_vito->BurnerStartCounter_sensor,
+               my_vito->HeaterMode_sensor,
+               my_vito->NormalSetTemperature_sensor,
+               my_vito->ReducedSetTemperature_sensor,
+               my_vito->ReceptionSetTemperature_sensor
+             };
     sensors:
       - name: "Température chaudière"
         unit_of_measurement: °C
@@ -129,15 +128,6 @@ sensor:
         unit_of_measurement: °C
         accuracy_decimals: 1
         id: vito_ambiant_temp
-      - name: "Pompe boiler" 
-        accuracy_decimals: 0
-      - name: "Pompe chauffage" 
-        accuracy_decimals: 0
-      - name: "Bruleur ON" 
-        accuracy_decimals: 0
-      - name: "Bruleur en défaut" 
-        accuracy_decimals: 0
-        icon: mdi:error-outline
       - name: "Bruleur (temp)" 
         unit_of_measurement: h
         accuracy_decimals: 1
@@ -150,15 +140,6 @@ sensor:
         accuracy_decimals: 0
       - name: "Mode de fonctionnement" 
         accuracy_decimals: 0
-      - name: "Code défaut"
-        accuracy_decimals: 0
-        icon: mdi:error-outline
-      - name: "Mode ECO" 
-        accuracy_decimals: 0
-      - name: "Mode réception" 
-        accuracy_decimals: 0
-      - name: "Pompe circulation"
-        accuracy_decimals: 0
       - name: "Consigne normale" 
         unit_of_measurement: °C
         accuracy_decimals: 1
@@ -169,14 +150,41 @@ sensor:
         unit_of_measurement: °C
         accuracy_decimals: 1
 
+
 binary_sensor:
   - platform: custom
     lambda: |-
       auto my_vito_bin = new MyVitoBinarySensorsComponent();
       App.register_component(my_vito_bin);
-      return { my_vito_bin->WaterPriority_sensor};
+      return { my_vito_bin->WaterPriority_sensor,
+               my_vito_bin->HWGPump_sensor,
+               my_vito_bin->HeatingPump_sensor,
+               my_vito_bin->HWCirculatingPump_sensor,
+               my_vito_bin->BurnerON_sensor,
+               my_vito_bin->BurnerDefault_sensor,
+               my_vito_bin->HeaterDefault_sensor,
+               my_vito_bin->HeaterEco_sensor,
+               my_vito_bin->HeateReception_sensor
+             };
     binary_sensors:
       - name: "Priorité sanitaire"
+        icon: mdi:water-pump
+      - name: "Pompe boiler" 
+        icon: mdi:pump
+      - name: "Pompe chauffage" 
+        icon: mdi:pump
+      - name: "Pompe circulation"
+        icon: mdi:pump
+      - name: "Bruleur ON" 
+        icon: mdi:fire
+      - name: "Bruleur en défaut" 
+        icon: mdi:error-outline
+      - name: "Code défaut"
+        icon: mdi:error-outline
+      - name: "Mode ECO" 
+        icon: mdi:piggy-bank-outline
+      - name: "Mode réception" 
+        icon: mdi:party-popper
 
 
 text_sensor:
@@ -188,10 +196,12 @@ text_sensor:
       auto my_vito_txt = new MyVitoTextSensorsComponent();
       App.register_component(my_vito_txt);
       return { my_vito_txt->ModeTxt_sensor,
-               my_vito_txt->SetTxt_sensor};
+               my_vito_txt->SetTxt_sensor
+             };
     text_sensors:
       - name: "Mode"
       - name: "Consigne" 
+
 
 custom_component:
   - lambda: |-
@@ -199,17 +209,19 @@ custom_component:
       App.register_component(my_api);
       return {my_api};
     id: vito_api
+
      
 climate:
 - platform: custom
   lambda: |-
     auto my_vito_climate = new MyVitoClimateComponent();
     App.register_component(my_vito_climate);
-    return {my_vito_climate};
-
+    return { my_vito_climate
+           };
   climates:
     - name: "Vitotronic Climate"
       visual:
         min_temperature: 15
         max_temperature: 27
         temperature_step: 1.0
+

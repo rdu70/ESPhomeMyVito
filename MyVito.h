@@ -1,46 +1,64 @@
-// MyVitoRD
+// Project Name : ESPHome - MyVito
+// Author       : Romuald Dufour
+// License      : LGPL v2.1
+// Release      : 2022-02-01
 
-const char* logname PROGMEM = "Vitotronic";
 
 #include <Arduino.h>
 #include "esphome.h"
 
+// Uncomment next line to activate verbose debug mode
 //#define DEBUG
+
+// Uncomment to read all adresses - Take longer - No data on every systems
+//#define FULL_READ
+
+// Global parameters
+const char* logname PROGMEM = "Vitotronic";
 
 const int maxparam = 99;
 const int statuslen = 22;
 const int maxreclen = 50;
 
+uint16_t paramaddr[maxparam] = {0x0800, 0x5525, 0x5527, 0x0802, 0x0810, 0x0804, 0x0812, 0x0896, 
+                                0x551E, 0x0883, 0x0842, 0x7574, 0x088A, 0x08A7, 0x0845, 0x0846, 0x2906, 0x0847, 0x2500,
+                                0x2301, 0x2302, 0x2303, 0x2304, 0x2305, 0x2306, 0x2307, 0x2308,
+#ifdef FULL_READ
+                                0x00f8, 0x55E3, 0x0849, 0x08AB, 0x254C, 0x5555, 0x2309,
+                                0xA309, 0x0814, 0x0816, 0x0818, 0x081a, 0x089f, 0x2544, 0x555a, 0x080A, 0x080C,
+                                0xA38F, 0xA305, 0x08A1, 0x2501, 0x2502, 0x2508, 0x250A, 0x250B, 0x250C, 0x2510,
+#endif
+                                0};
+
+uint8_t paramlen[maxparam]   = {2,      2,      2,      2,      2,      2,      2,      2,
+                                1,      1,      1,      4,      4,      4,      1,      1,      1,      1,      statuslen,
+                                1,      1,      1,      1,      1,      1,      1,      1,
+#ifdef FULL_READ
+                                2,      1,      1,      4,      1,      1,      4,
+                                2,      2,      2,      2,      2,      2,      2,      2,      2,      2,
+                                2,      2,      2,      1,      4,      1,      1,      1,      2,      1,
+#endif
+                                0};
+
+char paramtxt[maxparam][20]  = {"T Ext Sonde", "T Ext Fltr", "T Ext Moy",    "T Chaud",    "T Chaud Fltr", "T Boiler",  "T Boiler Fltr",  "T Amb Fltr",
+                                "Bruleur", "Disf bruleur",    "Allure 1",    "Conso",    "Allumage",    "Temps Al. 1",     "Pompe Boiler",    "Pompe Circ",    "Pompe Chauf",    "Faute",    "Status",
+                                "Mode",    "Eco",    "Fete",    "Offset",    "Pente",    "Consigne Norm",    "Consigne Red",    "Consigne Fete",
+#ifdef FULL_READ
+                                "ID",   "",     "",     "",     "",     "",     "",
+                                "",     "",     "",     "",     "",     "",     "",     "",     "",     "",
+                                "",     "",     "",     "",     "",     "",     "",     "",     "",     "",
+#endif
+                                ""};
+
+// Globals vars
 uint16_t writeaddr;
-uint8_t writelen;  // 0, 1 or 2
+uint8_t writelen;    // 0, 1 or 2
 uint16_t writedata;
-uint8_t writeexec;  // 0:Nothing; 1:ExecWrite; 2:WriteDoneOk; 3:WriteDoneKO
+uint8_t writeexec;  // States : 0:Nothing; 1:ExecWrite; 2:WriteDoneOk; 3:WriteDoneKO
 
-// full read
-//  uint16_t paramaddr[maxparam] = {0x00f8, 0x5525, 0x5527, 0x0800, 0x0802, 0x0804, 0xA309, 0x0810, 0x0812, 0x0814, 0x0816, 0x0818, 0x081a, 0x0896, 0x089f, 0x2544, 0x555a, 0x080A, 0x080C,
-//                                  0x551E, 0x55E3, 0x0883, 0x0842, 0x0849, 0x7574, 0x088A, 0x08A7, 0x08AB, 0x0845, 0x0846, 0x254C, 0x2906, 0x5555, 0x0847, 0x2500, 0x3500,
-//                                  0xA38F, 0xA305, 0x08A1, 0x2301, 0x2302, 0x2303, 0x2304, 0x2305, 0x2306, 0x2307, 0x2308, 0x2501, 0x2502, 0x2508, 0x250A, 0x250B, 0x250C, 0x2510, 0};
-
-//  uint8_t paramlen[maxparam]   = {2,      2,      2,      2,      2,      2,      2,      2,      2,      2,      2,      2,      2,      2,      2,      2,      2,      2,      2,
-//                                  1,      1,      1,      1,      1,      4,      4,      4,      4,      1,      1,      1,      1,      1,      1,      statuslen,     statuslen,
-//                                  2,      2,      2,      1,      1,      1,      1,      1,      1,      1,      1,      1,      4,      1,      1,      1,      2,      1,      0};
-
-// Selected read
-  uint16_t paramaddr[maxparam] = {0x00f8, 0x0800, 0x5525, 0x5527, 0x0802, 0x0810, 0x0804, 0x0812, 0x0896, 
-                                  0x551E, 0x0883, 0x0842, 0x7574, 0x088A, 0x08A7, 0x0845, 0x0846, 0x2906, 0x0847, 0x2500,
-                                  0x2301, 0x2302, 0x2303, 0x2304, 0x2305, 0x2306, 0x2307, 0x2308, 0x2309, 0};
-
-  uint8_t paramlen[maxparam]   = {2,      2,      2,      2,      2,      2,      2,      2,      2,
-                                  1,      1,      1,      4,      4,      4,      1,      1,      1,      1,      statuslen,
-                                  1,      1,      1,      1,      1,      1,      1,      1,      4,      0};
-
-  char paramtxt[maxparam][20]  = {"ID",   "T Ext Sonde", "T Ext Fltr", "T Ext Moy",    "T Chaud",    "T Chaud Fltr", "T Boiler",  "T Boiler Fltr",  "T Amb Fltr",
-                                  "Bruleur", "Disf bruleur",    "Allure 1",    "Conso",    "Allumage",    "Temps Al. 1",     "Pompe Boiler",    "Pompe Circ",    "Pompe Chauf",    "Faute",    "Status",
-                                  "Mode",    "Eco",    "Fete",    "Offset",    "Pente",    "Consigne Norm",    "Consigne Red",    "Consigne Fete",    "", ""};
-
-  uint8_t param2500status[statuslen];
-  uint32_t paramvalue[maxparam];
-  uint8_t paramreaded[maxparam];
+uint8_t param2500status[statuslen];
+uint32_t paramvalue[maxparam];
+uint8_t paramreaded[maxparam];
 
 float target_temp = 0;
 float target_temp_last = 0;
@@ -52,6 +70,17 @@ int vitomode_last = -1;
 int txtupdate = 0;
 int binupdate = 0;
 
+uint8_t current_mode = 5;
+uint8_t b2509 = 2;
+uint8_t b250a = 0;
+bool eco_mode = false;
+bool reception_mode = false;
+bool water_priority = false;
+
+// Global functions
+void initvalue(){
+  for (int idx = 0; idx < maxparam; idx++) paramvalue[idx] = 0;
+}
 
 uint32_t getvalue(uint16_t addr){
   uint8_t idx = 0;
@@ -64,6 +93,14 @@ uint32_t getvalue(uint16_t addr){
 }
 
 void setvalue(uint16_t addr, uint32_t val){
+  // Sometime communication error give big difference on 32 bits value, poluting graph
+  // Limiting range and forcing increase only on monotone values
+  if ((addr == 0x7574) || (addr == 0x088a) || (addr == 0x08a7)){
+    uint32_t old_val = getvalue(addr);
+    if (val < old_val) val = old_val;
+    if ((old_val > 100) && (val > old_val*1.1)) val = old_val * 1.1;
+  }
+  // Save new data
   uint8_t idx = 0;
   while ((paramaddr[idx] != 0) && (idx < 250)) {
     if (paramaddr[idx] == addr) paramvalue[idx] = val;
@@ -71,49 +108,96 @@ void setvalue(uint16_t addr, uint32_t val){
   }
 }
 
+int getsigned(int ivalue) {
+  if (ivalue < 32768) return ivalue;
+  return ivalue - 65536;
+}
 
+void getstatus() { 
+  current_mode = getvalue(0x2301);
+  eco_mode = (getvalue(0x2302) != 0);
+  reception_mode = (getvalue(0x2303) != 0);
+  b2509 = param2500status[0x09];
+  b250a = param2500status[0x0a];
+  water_priority = (b250a == 0) && ((b2509 == 3) || (b2509 == 4));
+}
+
+// Binary sensors class
 class MyVitoBinarySensorsComponent : public Component, public BinarySensor {
+private:
+  uint32_t ivalue;
 
 public:
+  // Calculated sensors
   BinarySensor *WaterPriority_sensor = new BinarySensor();
+  
+  // Pump sensors
+  BinarySensor *HWGPump_sensor = new BinarySensor();
+  BinarySensor *HeatingPump_sensor = new BinarySensor();
+  BinarySensor *HWCirculatingPump_sensor = new BinarySensor();
+
+  // Burner sensors
+  BinarySensor *BurnerON_sensor = new BinarySensor();
+  BinarySensor *BurnerDefault_sensor = new BinarySensor();
+  
+  // Mode sensors
+  BinarySensor *HeaterDefault_sensor = new BinarySensor();
+  BinarySensor *HeaterEco_sensor = new BinarySensor();
+  BinarySensor *HeateReception_sensor = new BinarySensor();
 
   void loop() override {
     if (binupdate != 0) {
-      WaterPriority_sensor->publish_state(false);
+      getstatus();
+
+      // Calculated status
+      WaterPriority_sensor->publish_state(water_priority);
+      
+      // Pumps
+      ivalue = getvalue(0x0845);  if (ivalue>=0 && ivalue<=1) HWGPump_sensor->publish_state((ivalue != 0)); 
+      ivalue = getvalue(0x2906);  if (ivalue>=0 && ivalue<=1) HeatingPump_sensor->publish_state((ivalue != 0)); 
+      ivalue = getvalue(0x0846);  if (ivalue>=0 && ivalue<=1) HWCirculatingPump_sensor->publish_state((ivalue != 0)); 
+
+      // Burner
+      ivalue = getvalue(0x551E);  if (ivalue>=0 && ivalue<=1) BurnerON_sensor->publish_state((ivalue != 0)); 
+      ivalue = getvalue(0x0883);  if (ivalue>=0 && ivalue<=255) BurnerDefault_sensor->publish_state((ivalue != 0)); 
+      
+      // Modes
+      ivalue = getvalue(0x0847);  if (ivalue>=0 && ivalue<=255) HeaterDefault_sensor->publish_state((ivalue != 0)); 
+      ivalue = getvalue(0x2302);  if (ivalue>=0 && ivalue<=255) HeaterEco_sensor->publish_state((ivalue != 0)); 
+      ivalue = getvalue(0x2303);  if (ivalue>=0 && ivalue<=255) HeateReception_sensor->publish_state((ivalue != 0)); 
+
       binupdate = 0;
     }
   }
-
 };
 
-class MyVitoTextSensorsComponent : public Component, public TextSensor {
 
+// Text sensors class
+class MyVitoTextSensorsComponent : public Component, public TextSensor {
 public:
   TextSensor *ModeTxt_sensor = new TextSensor();
   TextSensor *SetTxt_sensor = new TextSensor();
   
   void loop() override {
     if (txtupdate != 0) {
-
-      uint8_t current_mode = getvalue(0x2301);
-      uint8_t eco_mode = getvalue(0x2302);
-      uint8_t reception_mode = getvalue(0x2303);
-      uint8_t b2509 = param2500status[0x09];
-      uint8_t b250a = param2500status[0x0a];
-
-      char StMode[20]; strcpy(StMode, "");
+      getstatus();
+      char StMode[20]; strcpy(StMode, "Unknown");
       if (current_mode == 5) strcpy(StMode, "Veille");
       if (current_mode == 0) strcpy(StMode, "ECS");
       if (current_mode == 3) {
         strcpy(StMode, "Chauffage");
         if (b2509 == 3) strcat(StMode, " Normal");
         if (b2509 == 4) strcat(StMode, " Réduit");
+        if (eco_mode) strcat(StMode, " Eco");
+        if (reception_mode) strcat(StMode, " Réception");
       }
       ModeTxt_sensor->publish_state(StMode);
-      char StSet[20]; strcpy(StSet, "");
+      char StSet[20]; strcpy(StSet, "Veille");
       if (current_mode == 3) {
         if (b250a == 1) strcpy(StSet, "Normale");
         if (b250a == 3) strcpy(StSet, "Réduite");
+        if (reception_mode) strcpy(StSet, "Réception");
+        if (water_priority) strcpy(StSet, "ECS");
       }
       SetTxt_sensor->publish_state(StSet);
       txtupdate = 0;
@@ -121,10 +205,11 @@ public:
   }
 };
 
+
+// Sensor Class - Manage numerical sensors and communication protocol
 class MyVitoSensorsComponent : public PollingComponent, public Sensor {
-
-public:
-
+private:
+  // Communication vars
   Stream* com;
   uint8_t state;
   uint8_t laststate;
@@ -145,13 +230,12 @@ public:
   uint16_t addr;
   uint8_t len;
 
+  // Other vars
   uint8_t paramidx;
-
   uint8_t publish;
 
 
-
-
+public:
   // Temperature sensors
   Sensor *HeaterTemperature_sensor = new Sensor();
   Sensor *BoilerTemperature_sensor = new Sensor();
@@ -162,39 +246,24 @@ public:
   Sensor *ReducedSetTemperature_sensor = new Sensor();
   Sensor *ReceptionSetTemperature_sensor = new Sensor();
 
-  // Pump sensors
-  Sensor *HWGPump_sensor = new Sensor();
-  Sensor *HeatingPump_sensor = new Sensor();
-  Sensor *HWCirculatingPump_sensor = new Sensor();
-
   // Burner sensors
-  Sensor *BurnerON_sensor = new Sensor();
-  Sensor *BurnerDefault_sensor = new Sensor();
   Sensor *BurnerTimeCounter_sensor = new Sensor();
   Sensor *BurnerConsumeCounter_sensor = new Sensor();
   Sensor *BurnerStartCounter_sensor = new Sensor();
 
+  // Mode sensors
   Sensor *HeaterMode_sensor = new Sensor();
-  Sensor *HeaterDefault_sensor = new Sensor();
-  Sensor *HeaterEco_sensor = new Sensor();
-  Sensor *HeateReception_sensor = new Sensor();
 
 
   void setup() override {
-
     ESP_LOGD(logname, "Initialise communication");
     initserial(&Serial);
+    initvalue();
     state = 102;  laststate = 255;
     paramidx = 0;  synced = 0; commstatus = 0;
     delay = 0; delaydone = 0; currentdelay = 0; loopdelay = 0;
     lastms = millis(); lastpollms = millis()-20000;
     publish = 0;
-
-  }
- 
-  int getsigned(int ivalue) {
-    if (ivalue < 32768) return ivalue;
-    return ivalue - 65536;
   }
  
   void update() override {
@@ -211,23 +280,14 @@ public:
       fvalue = getsigned(getvalue(0x2307)) / 1.0f;   if (fvalue>=0 && fvalue<=99) ReducedSetTemperature_sensor->publish_state(fvalue);
       fvalue = getsigned(getvalue(0x2308)) / 1.0f;   if (fvalue>=0 && fvalue<=99) ReceptionSetTemperature_sensor->publish_state(fvalue);
 
-      // Pumps
-      ivalue = getvalue(0x0845);  if (ivalue>=0 && ivalue<=1) HWGPump_sensor->publish_state(ivalue); 
-      ivalue = getvalue(0x2906);  if (ivalue>=0 && ivalue<=1) HeatingPump_sensor->publish_state(ivalue); 
-      ivalue = getvalue(0x0846);  if (ivalue>=0 && ivalue<=1) HWCirculatingPump_sensor->publish_state(ivalue); 
-
-      // Burner
-      ivalue = getvalue(0x551E);  if (ivalue>=0 && ivalue<=1) BurnerON_sensor->publish_state(ivalue); 
-      ivalue = getvalue(0x0883);  if (ivalue>=0 && ivalue<=255) BurnerDefault_sensor->publish_state(ivalue); 
+      // Burner counters
+      // Cap value to about 60 to 100 years of usage
       ivalue = getvalue(0x088a);  if (ivalue>=0 && ivalue<=1000000) BurnerStartCounter_sensor->publish_state(ivalue); 
       fvalue = getvalue(0x08A7)/3600.0f;  if (fvalue>=0 && fvalue<=100000) BurnerTimeCounter_sensor->publish_state(fvalue); 
-      fvalue = getvalue(0x7574)/10000.0f; if (fvalue>=0 && fvalue<=100000) BurnerConsumeCounter_sensor->publish_state(fvalue); 
+      fvalue = getvalue(0x7574)/10000.0f; if (fvalue>=0 && fvalue<=200000) BurnerConsumeCounter_sensor->publish_state(fvalue); 
 
       // Modes
       ivalue = getvalue(0x2301);  if (ivalue>=0 && ivalue<=255) { HeaterMode_sensor->publish_state(ivalue); vitomode = ivalue; }
-      ivalue = getvalue(0x0847);  if (ivalue>=0 && ivalue<=255) HeaterDefault_sensor->publish_state(ivalue); 
-      ivalue = getvalue(0x2302);  if (ivalue>=0 && ivalue<=255) HeaterEco_sensor->publish_state(ivalue); 
-      ivalue = getvalue(0x2303);  if (ivalue>=0 && ivalue<=255) HeateReception_sensor->publish_state(ivalue); 
 
       txtupdate = 1;
       binupdate = 1;
@@ -238,7 +298,6 @@ public:
 
   void dump_config() override {
     ESP_LOGCONFIG(logname, "VitotronicComponent:");
-//    LOG_UPDATE_INTERVAL(this);
     ESP_LOGCONFIG(logname, "  Commstatus %02d", commstatus);
   }
 
@@ -314,9 +373,7 @@ public:
      loopdelay++;
    }
 
-
- 
-
+    // Communication protocol state machine (0xx = READ; 1XX = IDLE ; 2xx = WRITE)
     switch (state) {
 
       case 0: {
@@ -589,15 +646,12 @@ public:
         if (com->available()){
           c = readcom();
           if (c == 0) {
-            writeexec = 2;
-            if (addr == 0x2301) { if (writedata>=0 && writedata<=255) HeaterMode_sensor->publish_state(writedata); } 
-            if (addr == 0x2302) { if (writedata>=0 && writedata<=255) HeaterEco_sensor->publish_state(writedata); } 
-            if (addr == 0x2303) { if (writedata>=0 && writedata<=255) HeateReception_sensor->publish_state(writedata); } 
-            if (addr == 0x2306) { fvalue = writedata / 1.0f;   if (fvalue>=0 && fvalue<=99) { NormalSetTemperature_sensor->publish_state(fvalue); target_temp = fvalue; } }
-            if (addr == 0x2307) { fvalue = writedata / 1.0f;   if (fvalue>=0 && fvalue<=99) ReducedSetTemperature_sensor->publish_state(fvalue); }
-            if (addr == 0x2308) { fvalue = writedata / 1.0f;   if (fvalue>=0 && fvalue<=99) ReceptionSetTemperature_sensor->publish_state(fvalue); }
+            if (addr == 0x2306) { fvalue = writedata / 1.0f;   if (fvalue>=0 && fvalue<=99) target_temp = fvalue; }
             setvalue(addr, writedata);
-            ESP_LOGD(logname, "Write OK"); } else {
+            writeexec = 2;
+            ESP_LOGD(logname, "Write OK");
+            publish = 1;
+          } else {
             writeexec = 3;
             ESP_LOGD(logname, "Write error");
           }
@@ -612,54 +666,29 @@ public:
         break;
       }
     }
-
-
-
-
   }
-
 };
+
 
 // API Class
 class MyVitoAPIComponent : public Component, public CustomAPIDevice {
  public:
   void setup() override {
-    // This will be called once to set up the component
-    // think of it as the setup() call in Arduino
     writeexec = 0;
     writelen = 0;
     writedata = 0;
     writeaddr = 0;
 
-    // Declare a service "hello_world"
-    //  - Service will be called "esphome.<NODE_NAME>_hello_world" in Home Assistant.
-    //  - The service has no arguments
-    //  - The function on_hello_world declared below will attached to the service.
-    register_service(&MyVitoAPIComponent::on_hello_world, "hello_world");
-
-    // Declare a second service "start_write_cycle"
-    //  - Service will be called "esphome.<NODE_NAME>_start_washer_cycle" in Home Assistant.
+    // Declare a service "start_write_cycle"
+    //  - Service will be called "esphome.<NODE_NAME>_start_write_cycle" in Home Assistant.
     //  - The service has three arguments (type inferred from method definition):
-    //     - cycle_duration: integer
-    //     - silent: boolean
-    //     - string_argument: string
-    //  - The function start_washer_cycle declared below will attached to the service.
+    //     - address : address to write
+    //     - len : data length
+    //     - data : data to write (number)
     register_service(&MyVitoAPIComponent::on_start_write_cycle, "start_write_cycle",
                      {"address", "datalen", "data"});
-
-    // Subscribe to a Home Assistant state "sensor.temperature"
-    //  - Each time the ESP connects or Home Assistant updates the state, the function
-    //    on_state_changed will be called
-    //  - The state is a string - if you want to use it as an int you must parse it manually
-    //subscribe_homeassistant_state(&MyVitoAPIComponent::on_state_changed, "sensor.temperature");
   }
-  void on_hello_world() {
-    ESP_LOGD("vito_api", "Hello World!");
 
-    if (is_connected()) {
-      // Example check to see if a client is connected
-    }
-  }
   void on_start_write_cycle(int address, int datalen, int data) {
     if (datalen >= 0 && datalen <=2) {
       if ((address == 0x2306 || address == 0x2307 || address == 0x2308) && datalen == 1 && data >=3 && data <= 35) {
@@ -676,29 +705,32 @@ class MyVitoAPIComponent : public Component, public CustomAPIDevice {
         ESP_LOGD("vito_api", "Starting write cycle - Mode Set");
         writeexec = 1;
       }
-      if ((address == 0x2302 || address == 0x2303) && datalen == 1 && data >=0 && data <= 1) {
+      if (address == 0x2302 && datalen == 1 && data >=0 && data <= 1 && (getvalue(0x2303)==0)) {
         writelen = datalen;
         writedata = data;
         writeaddr = address;
-        ESP_LOGD("vito_api", "Starting write cycle - Eco/Reception mode");
+        ESP_LOGD("vito_api", "Starting write cycle - Eco mode");
+        writeexec = 1;
+      }
+      if (address == 0x2303 && datalen == 1 && data >=0 && data <= 1 && (getvalue(0x2302)==0)) {
+        writelen = datalen;
+        writedata = data;
+        writeaddr = address;
+        ESP_LOGD("vito_api", "Starting write cycle - Reception mode");
         writeexec = 1;
       }
     }
 
-    // Call a homeassistant service
-    //call_homeassistant_service("homeassistant.service");
   }
-  //void on_state_changed(std::string state) {
-  //  ESP_LOGD(TAG, "Temperature has changed to %s", state.c_str());
-  //}
 };
+
 
 // Climate Class
 class MyVitoClimateComponent : public Component, public Climate {
  public:
   void setup() override {
-    // This will be called by App.setup()
   }
+
   void loop() override {
     if ((target_temp != target_temp_last) || (current_temp != current_temp_last) || (vitomode != vitomode_last)) {
       target_temp_last = target_temp;
@@ -710,6 +742,7 @@ class MyVitoClimateComponent : public Component, public Climate {
       this->publish_state();
     }
   }
+
   void control(const ClimateCall &call) override {
     if (call.get_mode().has_value()) {
       // User requested mode change
@@ -726,7 +759,6 @@ class MyVitoClimateComponent : public Component, public Climate {
       // User requested target temperature change
       float temp = *call.get_target_temperature();
       // Send target temp to climate
-      // ...
       if (temp >= 3 && temp <= 30) {
         ESP_LOGD("vito_climate", "Climate ctrl set target temp : %4.1f", temp);
         writelen = 1;
@@ -741,15 +773,16 @@ class MyVitoClimateComponent : public Component, public Climate {
       }
     }
   }
+
   ClimateTraits traits() override {
     // The capabilities of the climate device
     auto traits = climate::ClimateTraits();
     traits.set_supports_current_temperature(true);
     traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_AUTO});
     traits.set_supported_presets({climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_COMFORT});
-    //traits.set_visual_min_temperature(10);
-    //traits.set_visual_max_temperature(30);
-    //traits.set_visual_temperature_step(1);
+    traits.set_visual_min_temperature(10);
+    traits.set_visual_max_temperature(30);
+    traits.set_visual_temperature_step(1);
     return traits;
   }
 };
