@@ -1,0 +1,215 @@
+substitutions:
+  device_name: vito
+  device_description: Vitotronic Monitoring system.
+  friendly_name: MyVito
+  
+
+esphome:
+  name: ${device_name}
+  comment: ${device_description}
+  platform: ESP8266
+  board: nodemcuv2
+
+
+  # include custom component
+  includes:
+    - MyVito.h
+
+wifi:
+  ssid: "SEIA"
+  password: "G7XE7fw!se9"
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: ${friendly_name}_AP
+    password: "vCWNsZhhlkgA"
+
+captive_portal:
+
+# Enable logging on UART1
+logger:
+  level: DEBUG
+  hardware_uart: UART1
+
+# Enable Home Assistant API
+api:
+
+# Enable OTA
+ota:
+
+# Enable web server
+web_server:
+  port: 80
+
+# Enable time component for use by daily power sensor
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+
+# Configure 1-Wire bus on PIN D1 and D2
+# Used to add more temperature sensors
+dallas:
+  - pin: D1
+    id: Hub1
+  - pin: D2
+    id: Hub2
+
+
+
+# Sensors
+sensor:
+  - platform: wifi_signal
+    name: "${friendly_name} WiFi Signal"
+    update_interval: 60s
+    id: system_wifi_signal
+  - platform: uptime
+    name: "${friendly_name} uptime"
+    filters:
+      - lambda: return x / 60.0;
+    unit_of_measurement: minutes
+    id: system_uptime
+
+  - platform: dallas
+    dallas_id: Hub1
+    address: 0xA4000005EAC1A228
+    name: "Température chaufferie"
+    id: temp_boiler_room
+
+  - platform: dallas
+    dallas_id: Hub1
+    address: 0x2F000002563D4628
+    name: "Température boiler (Haut)"
+    id: temp_waterboiler_top
+
+  - platform: dallas
+    dallas_id: Hub2
+    address: 0x7D000802080DAE10
+    name: "Température départ"
+    id: temp_heater_flow
+
+  - platform: dallas
+    dallas_id: Hub2
+    address: 0xEA00080207E3EE10
+    name: "Température retour"
+    id: temp_heater_return
+
+  - platform: custom
+    lambda: |-
+      auto my_vito = new MyVitoSensorsComponent();
+      App.register_component(my_vito);
+      return {my_vito->HeaterTemperature_sensor, my_vito->BoilerTemperature_sensor, 
+              my_vito->ExternalTemperature_sensor, my_vito->ExternalMeanTemperature_sensor,
+              my_vito->AmbiantTemperature_sensor,
+              my_vito->HWGPump_sensor, my_vito->HeatingPump_sensor,
+              my_vito->BurnerON_sensor, my_vito->BurnerDefault_sensor,
+              my_vito->BurnerTimeCounter_sensor, my_vito->BurnerConsumeCounter_sensor, my_vito->BurnerStartCounter_sensor,
+              my_vito->HeaterMode_sensor, my_vito->HeaterDefault_sensor,
+              my_vito->HeaterEco_sensor, my_vito->HeateReception_sensor,
+              my_vito->HWCirculatingPump_sensor,
+              my_vito->NormalSetTemperature_sensor,
+              my_vito->ReducedSetTemperature_sensor,
+              my_vito->ReceptionSetTemperature_sensor};
+
+
+    sensors:
+      - name: "Température chaudière"
+        unit_of_measurement: °C
+        accuracy_decimals: 1
+      - name: "Température boiler (bas)"
+        unit_of_measurement: °C
+        accuracy_decimals: 1
+      - name: "Température extérieure" 
+        unit_of_measurement: °C
+        accuracy_decimals: 1
+      - name: "Température extérieure moyennée" 
+        unit_of_measurement: °C
+        accuracy_decimals: 1
+      - name: "Température ambiante" 
+        unit_of_measurement: °C
+        accuracy_decimals: 1
+        id: vito_ambiant_temp
+      - name: "Pompe boiler" 
+        accuracy_decimals: 0
+      - name: "Pompe chauffage" 
+        accuracy_decimals: 0
+      - name: "Bruleur ON" 
+        accuracy_decimals: 0
+      - name: "Bruleur en défaut" 
+        accuracy_decimals: 0
+        icon: mdi:error-outline
+      - name: "Bruleur (temp)" 
+        unit_of_measurement: h
+        accuracy_decimals: 1
+        icon: mdi:timer-outline
+      - name: "Bruleur (conso)" 
+        unit_of_measurement: l
+        accuracy_decimals: 1 
+      - name: "Bruleur (allumages)" 
+        unit_of_measurement: all
+        accuracy_decimals: 0
+      - name: "Mode de fonctionnement" 
+        accuracy_decimals: 0
+      - name: "Code défaut"
+        accuracy_decimals: 0
+        icon: mdi:error-outline
+      - name: "Mode ECO" 
+        accuracy_decimals: 0
+      - name: "Mode réception" 
+        accuracy_decimals: 0
+      - name: "Pompe circulation"
+        accuracy_decimals: 0
+      - name: "Consigne normale" 
+        unit_of_measurement: °C
+        accuracy_decimals: 1
+      - name: "Consigne réduite" 
+        unit_of_measurement: °C
+        accuracy_decimals: 1
+      - name: "Consigne réception" 
+        unit_of_measurement: °C
+        accuracy_decimals: 1
+
+binary_sensor:
+  - platform: custom
+    lambda: |-
+      auto my_vito_bin = new MyVitoBinarySensorsComponent();
+      App.register_component(my_vito_bin);
+      return { my_vito_bin->WaterPriority_sensor};
+    binary_sensors:
+      - name: "Priorité sanitaire"
+
+
+text_sensor:
+  - platform: version
+    name: "${friendly_name} ESPHome version"
+
+  - platform: custom
+    lambda: |-
+      auto my_vito_txt = new MyVitoTextSensorsComponent();
+      App.register_component(my_vito_txt);
+      return { my_vito_txt->ModeTxt_sensor,
+               my_vito_txt->SetTxt_sensor};
+    text_sensors:
+      - name: "Mode"
+      - name: "Consigne" 
+
+custom_component:
+  - lambda: |-
+      static auto my_api = new MyVitoAPIComponent();
+      App.register_component(my_api);
+      return {my_api};
+    id: vito_api
+     
+climate:
+- platform: custom
+  lambda: |-
+    auto my_vito_climate = new MyVitoClimateComponent();
+    App.register_component(my_vito_climate);
+    return {my_vito_climate};
+
+  climates:
+    - name: "Vitotronic Climate"
+      visual:
+        min_temperature: 15
+        max_temperature: 27
+        temperature_step: 1.0
