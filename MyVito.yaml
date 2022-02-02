@@ -16,13 +16,13 @@ esphome:
     - MyVito.h
 
 wifi:
-  ssid: "SEIA"
-  password: "G7XE7fw!se9"
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
     ssid: ${friendly_name}_AP
-    password: "vCWNsZhhlkgA"
+    password: !secret wifi_ap_password
 
 captive_portal:
 
@@ -109,7 +109,9 @@ sensor:
                my_vito->HeaterMode_sensor,
                my_vito->NormalSetTemperature_sensor,
                my_vito->ReducedSetTemperature_sensor,
-               my_vito->ReceptionSetTemperature_sensor
+               my_vito->ReceptionSetTemperature_sensor,
+               my_vito->HotWaterSetTemperature_sensor,
+               my_vito->HotWaterOffsetTemperature_sensor
              };
     sensors:
       - name: "Température chaudière"
@@ -147,6 +149,12 @@ sensor:
         unit_of_measurement: °C
         accuracy_decimals: 1
       - name: "Consigne réception" 
+        unit_of_measurement: °C
+        accuracy_decimals: 1
+      - name: "Consigne ECS" 
+        unit_of_measurement: °C
+        accuracy_decimals: 1
+      - name: "Offset ECS" 
         unit_of_measurement: °C
         accuracy_decimals: 1
 
@@ -219,9 +227,22 @@ climate:
     return { my_vito_climate
            };
   climates:
-    - name: "Vitotronic Climate"
+    - name: "Vitotronic Chauffage"
       visual:
         min_temperature: 15
         max_temperature: 27
+        temperature_step: 1.0
+
+- platform: custom
+  lambda: |-
+    auto my_vito_water_climate = new MyVitoWaterClimateComponent();
+    App.register_component(my_vito_water_climate);
+    return { my_vito_water_climate
+           };
+  climates:
+    - name: "Vitotronic ECS"
+      visual:
+        min_temperature: 10
+        max_temperature: 60
         temperature_step: 1.0
 

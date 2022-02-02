@@ -3,7 +3,6 @@
 // License      : LGPL v2.1
 // Release      : 2022-02-01
 
-
 #include <Arduino.h>
 #include "esphome.h"
 
@@ -20,34 +19,47 @@ const int maxparam = 99;
 const int statuslen = 22;
 const int maxreclen = 50;
 
-uint16_t paramaddr[maxparam] = {0x0800, 0x5525, 0x5527, 0x0802, 0x0810, 0x0804, 0x0812, 0x0896, 
-                                0x551E, 0x0883, 0x0842, 0x7574, 0x088A, 0x08A7, 0x0845, 0x0846, 0x2906, 0x0847, 0x2500,
-                                0x2301, 0x2302, 0x2303, 0x2304, 0x2305, 0x2306, 0x2307, 0x2308,
+uint16_t paramaddr[maxparam] = {0x0800, 0x5525, 0x5527, 0x0802, 0x0810, 0x0896,                                  // Chauffage
+                                0x551E, 0x0883, 0x0842, 0x7574, 0x088A, 0x08A7, 0x2906, 0x0847, 0x2500,          // Bruleur+Status
+                                0x2301, 0x2302, 0x2303, 0x2304, 0x2305, 0x2306, 0x2307, 0x2308,                  // Modes+Consignes
+                                0x6300, 0x6760, 0x0804, 0x0812, 0x0845, 0x0846,                                  // ECS
+                                0x7507, 0x7510, 0x7519, 0x7522, 0x752b, 0x7534, 0x753d, 0x7546, 0x754f, 0x7558,  // Error codes
+                                0x2000, 0x2008, 0x2010, 0x2018, 0x2020, 0x2028, 0x2030,                          // Timers Chauffage
+                                0x2100, 0x2108, 0x2110, 0x2118, 0x2120, 0x2128, 0x2130,                          // Timers Charge ECS
+                                0x2200, 0x2208, 0x2210, 0x2218, 0x2220, 0x2228, 0x2230,                          // Timers Boucle ECS
+                                0x088e,                                                                          // System Date & Time
 #ifdef FULL_READ
-                                0x00f8, 0x55E3, 0x0849, 0x08AB, 0x254C, 0x5555, 0x2309,
+                                0x00f8, 0x55E3, 0x0849, 0x08AB, 0x254C, 0x5555, 0x2309, 0x0808,
                                 0xA309, 0x0814, 0x0816, 0x0818, 0x081a, 0x089f, 0x2544, 0x555a, 0x080A, 0x080C,
                                 0xA38F, 0xA305, 0x08A1, 0x2501, 0x2502, 0x2508, 0x250A, 0x250B, 0x250C, 0x2510,
 #endif
                                 0};
 
-uint8_t paramlen[maxparam]   = {2,      2,      2,      2,      2,      2,      2,      2,
-                                1,      1,      1,      4,      4,      4,      1,      1,      1,      1,      statuslen,
+uint8_t paramlen[maxparam]   = {2,      2,      2,      2,      2,      2,
+                                1,      1,      1,      4,      4,      4,      1,      1,      statuslen,
                                 1,      1,      1,      1,      1,      1,      1,      1,
+                                1,      1,      2,      2,      1,      1,
+                                1,      1,      1,      1,      1,      1,      1,      1,      1,      1,
+                                8,      8,      8,      8,      8,      8,      8,
+                                8,      8,      8,      8,      8,      8,      8,
+                                8,      8,      8,      8,      8,      8,      8,
+                                8,
 #ifdef FULL_READ
-                                2,      1,      1,      4,      1,      1,      4,
+                                2,      1,      1,      4,      1,      1,      4,      2
                                 2,      2,      2,      2,      2,      2,      2,      2,      2,      2,
                                 2,      2,      2,      1,      4,      1,      1,      1,      2,      1,
 #endif
                                 0};
 
-char paramtxt[maxparam][20]  = {"T Ext Sonde", "T Ext Fltr", "T Ext Moy",    "T Chaud",    "T Chaud Fltr", "T Boiler",  "T Boiler Fltr",  "T Amb Fltr",
-                                "Bruleur", "Disf bruleur",    "Allure 1",    "Conso",    "Allumage",    "Temps Al. 1",     "Pompe Boiler",    "Pompe Circ",    "Pompe Chauf",    "Faute",    "Status",
-                                "Mode",    "Eco",    "Fete",    "Offset",    "Pente",    "Consigne Norm",    "Consigne Red",    "Consigne Fete",
-#ifdef FULL_READ
-                                "ID",   "",     "",     "",     "",     "",     "",
+char paramtxt[maxparam][20]  = {"T Ext Sonde",  "T Ext Fltr",   "T Ext Moy", "T Chaud",       "T Chaud Fltr", "T Amb Fltr",
+                                "Bruleur",      "Disf bruleur", "Allure 1",  "Conso",         "Allumage",     "Temps Al. 1",   "Pompe Chauf",  "Faute",         "Status",
+                                "Mode",         "Eco",          "Fete",      "Offset",        "Pente",        "Consigne Norm", "Consigne Red", "Consigne Fete",
+                                "Consigne ECS", "Offset ECS",   "T Boiler",  "T Boiler Fltr", "Pompe Boiler", "Pompe Circ",
+                                "Error 1",      "Error 2",      "Error 3",   "Error 4",       "Error 5",      "Error 6",       "Error 7",      "Error 8",       "Error 9", "Error 10",
+                                "",             "",
+                                "ID",   "",     "",     "",     "",     "",     "",     "T Fumée",
                                 "",     "",     "",     "",     "",     "",     "",     "",     "",     "",
                                 "",     "",     "",     "",     "",     "",     "",     "",     "",     "",
-#endif
                                 ""};
 
 // Globals vars
@@ -58,14 +70,29 @@ uint8_t writeexec;  // States : 0:Nothing; 1:ExecWrite; 2:WriteDoneOk; 3:WriteDo
 
 uint8_t param2500status[statuslen];
 uint32_t paramvalue[maxparam];
+uint8_t paramrecbuf[maxparam][statuslen];
 uint8_t paramreaded[maxparam];
 
-float target_temp = 0;
+struct climate {
+  float target = 0;
+  float target_last = 0;
+  float current = 0;
+  float current_last = 0;
+  int   mode = -1;
+  int   mode_last = -1;
+};
+
+struct climate heaterclimate;
+struct climate waterclimate;
+
+
+/*float target_temp = 0;
 float target_temp_last = 0;
 float current_temp = 0;
 float current_temp_last = 0;
 int vitomode = -1;
 int vitomode_last = -1;
+*/
 
 int txtupdate = 0;
 int binupdate = 0;
@@ -79,7 +106,11 @@ bool water_priority = false;
 
 // Global functions
 void initvalue(){
-  for (int idx = 0; idx < maxparam; idx++) paramvalue[idx] = 0;
+  for (int idx = 0; idx < maxparam; idx++) {
+    paramvalue[idx] = 0;
+    for (int idx2 = 0; idx2 < statuslen; idx2++) paramrecbuf[idx][idx2] = 0;
+  }
+  for (int idx = 0; idx < statuslen; idx++) param2500status[idx] = 0;
 }
 
 uint32_t getvalue(uint16_t addr){
@@ -229,6 +260,7 @@ private:
   uint8_t cmd;
   uint16_t addr;
   uint8_t len;
+  char readbuffer[maxreclen];
 
   // Other vars
   uint8_t paramidx;
@@ -245,6 +277,8 @@ public:
   Sensor *NormalSetTemperature_sensor = new Sensor();
   Sensor *ReducedSetTemperature_sensor = new Sensor();
   Sensor *ReceptionSetTemperature_sensor = new Sensor();
+  Sensor *HotWaterSetTemperature_sensor = new Sensor();
+  Sensor *HotWaterOffsetTemperature_sensor = new Sensor();
 
   // Burner sensors
   Sensor *BurnerTimeCounter_sensor = new Sensor();
@@ -272,13 +306,17 @@ public:
     if (publish != 0) {
       // Temperatures
       fvalue = getsigned(getvalue(0x0810)) / 10.0f;  if (fvalue>=1 && fvalue<=99) HeaterTemperature_sensor->publish_state(fvalue);
-      fvalue = getsigned(getvalue(0x0812)) / 10.0f;  if (fvalue>=1 && fvalue<=99) BoilerTemperature_sensor->publish_state(fvalue);
-      fvalue = getsigned(getvalue(0x0896)) / 10.0f;  if (fvalue>=0 && fvalue<=99) { AmbiantTemperature_sensor->publish_state(fvalue); current_temp = fvalue; }
+      fvalue = getsigned(getvalue(0x0812)) / 10.0f;  if (fvalue>=1 && fvalue<=99) { BoilerTemperature_sensor->publish_state(fvalue); waterclimate.current = fvalue; }
+      fvalue = getsigned(getvalue(0x0896)) / 10.0f;  if (fvalue>=0 && fvalue<=99) { AmbiantTemperature_sensor->publish_state(fvalue); heaterclimate.current = fvalue; }
       fvalue = getsigned(getvalue(0x5525)) / 10.0f;  if (fvalue>=-30 && fvalue<=99) ExternalTemperature_sensor->publish_state(fvalue);
       fvalue = getsigned(getvalue(0x5527)) / 10.0f;  if (fvalue>=-30 && fvalue<=99) ExternalMeanTemperature_sensor->publish_state(fvalue);
-      fvalue = getsigned(getvalue(0x2306)) / 1.0f;   if (fvalue>=0 && fvalue<=99) { NormalSetTemperature_sensor->publish_state(fvalue); target_temp = fvalue; }
+
+      fvalue = getsigned(getvalue(0x2306)) / 1.0f;   if (fvalue>=0 && fvalue<=99) { NormalSetTemperature_sensor->publish_state(fvalue); heaterclimate.target = fvalue; }
       fvalue = getsigned(getvalue(0x2307)) / 1.0f;   if (fvalue>=0 && fvalue<=99) ReducedSetTemperature_sensor->publish_state(fvalue);
       fvalue = getsigned(getvalue(0x2308)) / 1.0f;   if (fvalue>=0 && fvalue<=99) ReceptionSetTemperature_sensor->publish_state(fvalue);
+
+      fvalue = getsigned(getvalue(0x6300)) / 1.0f;   if (fvalue>=0 && fvalue<=99) { HotWaterSetTemperature_sensor->publish_state(fvalue); waterclimate.target = fvalue; }
+      fvalue = getsigned(getvalue(0x6760)) / 1.0f;   if (fvalue>=0 && fvalue<=99) HotWaterOffsetTemperature_sensor->publish_state(fvalue);
 
       // Burner counters
       // Cap value to about 60 to 100 years of usage
@@ -287,7 +325,7 @@ public:
       fvalue = getvalue(0x7574)/10000.0f; if (fvalue>=0 && fvalue<=200000) BurnerConsumeCounter_sensor->publish_state(fvalue); 
 
       // Modes
-      ivalue = getvalue(0x2301);  if (ivalue>=0 && ivalue<=255) { HeaterMode_sensor->publish_state(ivalue); vitomode = ivalue; }
+      ivalue = getvalue(0x2301);  if (ivalue>=0 && ivalue<=255) { HeaterMode_sensor->publish_state(ivalue); heaterclimate.mode = ivalue; }
 
       txtupdate = 1;
       binupdate = 1;
@@ -447,34 +485,27 @@ public:
           readerror = 0;
           synced = 0;
           paramreaded[paramidx-1]=0;
-          if (paramlen[paramidx-1] > 4)
-            // 350 min for 22 bytes received
-            setdelay(500);
-          else
-            // 20 min for 2 bytes received / 50 min for 4 bytes received
-            setdelay(60);
+          setdelay(20 + 16 * len);  // receive timeout delay : 36 to 372 ms
         }
       }
       break;
 
       case 5: { // Receiving
-        if (delaydone != 0){ // Timeout
-          if (paramreaded[paramidx-1] != paramlen[paramidx-1])
+        if ((delaydone != 0) || (readidx == len)) {  // Timeout or received correct number of bytes
+          if (readidx != len)
           {
-            readerror = 1;
-            ESP_LOGD(logname, "Read error - incorect length received");
+            readerror = 1;  readidx = 0;
+            ESP_LOGD(logname, "Read error - incorect length received - %d received / %d expected", readidx, len);
           }
-          if (readerror != 0) { paramvalue[paramidx-1] = 0xffffffff; paramreaded[paramidx-1]=0; }
           state = 6;
         }
         if (com->available()){
           c = readcom();
-          if (readidx == 0) paramvalue[paramidx-1] = c;
-          else paramvalue[paramidx-1] += c << 8*readidx;
-          if ((paramaddr[paramidx-1]==0x2500) && (readidx < statuslen)) param2500status[readidx]=c;
-          if (readidx==maxreclen) readerror = 1;
-          if (readidx<maxreclen) readidx++;
-          paramreaded[paramidx-1]=readidx;
+          readbuffer[readidx] = c;
+
+          if (readidx == maxreclen) readerror = 1;
+          if (readidx < maxreclen) readidx++;
+
           synced = 1;
         }
       }
@@ -483,17 +514,21 @@ public:
       case 6: { // data treatment
         if (readerror == 0)
         {
-          if (paramreaded[paramidx-1]) {
-             if (paramreaded[paramidx-1] > 4){
+          if (readidx) {
+             paramreaded[paramidx-1]=readidx;
+             paramvalue[paramidx-1] = readbuffer[0];
+             for (int i = 1; i < readidx; i++) paramvalue[paramidx-1] += readbuffer[i] << 8*i;
+             if (addr == 0x2500) memcpy(param2500status, readbuffer, sizeof(param2500status));
+             if (readidx > 4){
                St[0] = 0;
-               for (int i=0; i<paramreaded[paramidx-1]; i++) {
-                 sprintf(Hex, "%02X", param2500status[i]);
+               for (int i = 0; i < readidx; i++) {
+                 sprintf(Hex, "%02X", readbuffer[i]);
                  St[3*i]=Hex[0]; St[3*i+1]=Hex[1]; St[3*i+2]=' '; St[3*i+3]=0;
                }
-               ESP_LOGD(logname, "Readed addr %04x : %02d (%02d) byte(s) - %-13s - Hex: %s", paramaddr[paramidx-1], paramreaded[paramidx-1], paramlen[paramidx-1], paramtxt[paramidx-1], St);
+               ESP_LOGD(logname, "Readed addr %04x : %02d (%02d) byte(s) - %-13s - Hex: %s", addr, readidx, len, paramtxt[paramidx-1], St);
              }
              else
-               ESP_LOGD(logname, "Readed addr %04x : %02d (%02d) byte(s) - %-13s - Hex: %8x  Dec: %10d", paramaddr[paramidx-1], paramreaded[paramidx-1], paramlen[paramidx-1],
+               ESP_LOGD(logname, "Readed addr %04x : %02d (%02d) byte(s) - %-13s - Hex: %8x  Dec: %10d", addr, readidx, len,
                         paramtxt[paramidx-1], paramvalue[paramidx-1], paramvalue[paramidx-1]);
              if (commstatus < 10) commstatus++;
           } else {
@@ -646,7 +681,8 @@ public:
         if (com->available()){
           c = readcom();
           if (c == 0) {
-            if (addr == 0x2306) { fvalue = writedata / 1.0f;   if (fvalue>=0 && fvalue<=99) target_temp = fvalue; }
+            if (addr == 0x2306) { fvalue = writedata / 1.0f;   if (fvalue>=0 && fvalue<=99) heaterclimate.target = fvalue; }
+            if (addr == 0x6300) { fvalue = writedata / 1.0f;   if (fvalue>=0 && fvalue<=99) waterclimate.target = fvalue; }
             setvalue(addr, writedata);
             writeexec = 2;
             ESP_LOGD(logname, "Write OK");
@@ -725,20 +761,20 @@ class MyVitoAPIComponent : public Component, public CustomAPIDevice {
 };
 
 
-// Climate Class
+// Climate Class for heating
 class MyVitoClimateComponent : public Component, public Climate {
  public:
   void setup() override {
   }
 
   void loop() override {
-    if ((target_temp != target_temp_last) || (current_temp != current_temp_last) || (vitomode != vitomode_last)) {
-      target_temp_last = target_temp;
-      this->target_temperature = target_temp;
-      current_temp_last = current_temp;
-      this->current_temperature = current_temp;
-      vitomode_last = vitomode;
-      if (vitomode == 3) this->mode = CLIMATE_MODE_AUTO; else this->mode = CLIMATE_MODE_OFF;
+    if ((heaterclimate.target != heaterclimate.target_last) || (heaterclimate.current != heaterclimate.current_last) || (heaterclimate.mode != heaterclimate.mode_last)) {
+      heaterclimate.target_last = heaterclimate.target;
+      this->target_temperature = heaterclimate.target;
+      heaterclimate.current_last = heaterclimate.current;
+      this->current_temperature = heaterclimate.current;
+      heaterclimate.mode_last = heaterclimate.mode;
+      if (heaterclimate.mode == 3) this->mode = CLIMATE_MODE_AUTO; else this->mode = CLIMATE_MODE_OFF;
       this->publish_state();
     }
   }
@@ -749,7 +785,7 @@ class MyVitoClimateComponent : public Component, public Climate {
       ClimateMode mode = *call.get_mode();
       // Send mode to hardware
       // ...
-      ESP_LOGD("vito_climate", "Climate ctrl set");
+      ESP_LOGD("vito_climate_heater", "Climate ctrl set");
 
       // Publish updated state
       this->mode = mode;
@@ -757,19 +793,19 @@ class MyVitoClimateComponent : public Component, public Climate {
     }
     if (call.get_target_temperature().has_value()) {
       // User requested target temperature change
-      float temp = *call.get_target_temperature();
+      float new_target = *call.get_target_temperature();
       // Send target temp to climate
-      if (temp >= 3 && temp <= 30) {
-        ESP_LOGD("vito_climate", "Climate ctrl set target temp : %4.1f", temp);
+      if (new_target >= 3 && new_target <= 30) {
+        ESP_LOGD("vito_climate_heater", "Climate ctrl set target temp : %4.1f", new_target);
         writelen = 1;
-        writedata = temp;
+        writedata = new_target;
         writeaddr = 0x2306;
-        ESP_LOGD("vito_climate", "Starting write cycle - SetTempUpdate");
+        ESP_LOGD("vito_climate_heater", "Starting write cycle - SetTempUpdate");
         writeexec = 1;
-        target_temp = temp;
-        this->target_temperature = temp;
+        heaterclimate.target = new_target;
+        this->target_temperature = new_target;
       } else {
-        ESP_LOGD("vito_climate", "Temperature requested out of range");
+        ESP_LOGD("vito_climate_heater", "Temperature requested out of range");
       }
     }
   }
@@ -782,6 +818,70 @@ class MyVitoClimateComponent : public Component, public Climate {
     traits.set_supported_presets({climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_COMFORT});
     traits.set_visual_min_temperature(10);
     traits.set_visual_max_temperature(30);
+    traits.set_visual_temperature_step(1);
+    return traits;
+  }
+};
+
+
+// Climate Class for water generator
+class MyVitoWaterClimateComponent : public Component, public Climate {
+ public:
+  void setup() override {
+  }
+
+  void loop() override {
+    if ((waterclimate.target != waterclimate.target_last) || (waterclimate.current != waterclimate.current_last) || (waterclimate.mode != waterclimate.mode_last)) {
+      waterclimate.target_last = waterclimate.target;
+      this->target_temperature = waterclimate.target;
+      waterclimate.current_last = waterclimate.current;
+      this->current_temperature = waterclimate.current;
+      waterclimate.mode_last = waterclimate.mode;
+      this->mode = CLIMATE_MODE_AUTO;
+      //if (vitomode == 3) this->mode = CLIMATE_MODE_AUTO; else this->mode = CLIMATE_MODE_OFF;
+      this->publish_state();
+    }
+  }
+
+  void control(const ClimateCall &call) override {
+    if (call.get_mode().has_value()) {
+      // User requested mode change
+      ClimateMode mode = *call.get_mode();
+      // Send mode to hardware
+      // ...
+      ESP_LOGD("vito_climate_ECS", "Climate ctrl set");
+
+      // Publish updated state
+      this->mode = mode;
+      this->publish_state();
+    }
+    if (call.get_target_temperature().has_value()) {
+      // User requested target temperature change
+      float new_target = *call.get_target_temperature();
+      // Send target temp to climate
+      if (new_target >= 10 && new_target <= 60) {
+        ESP_LOGD("vito_climate_ECS", "Climate ctrl set water set temp : %4.1f", new_target);
+        writelen = 1;
+        writedata = new_target;
+        writeaddr = 0x6300;
+        ESP_LOGD("vito_water_climate_ECS", "Starting write cycle - SetTempUpdate");
+        writeexec = 1;
+        waterclimate.target = new_target;
+        this->target_temperature = new_target;
+      } else {
+        ESP_LOGD("vito_climate_ECS", "Temperature requested out of range");
+      }
+    }
+  }
+
+  ClimateTraits traits() override {
+    // The capabilities of the climate device
+    auto traits = climate::ClimateTraits();
+    traits.set_supports_current_temperature(true);
+    traits.set_supported_modes({climate::CLIMATE_MODE_AUTO});
+    traits.set_supported_presets({});
+    traits.set_visual_min_temperature(10);
+    traits.set_visual_max_temperature(60);
     traits.set_visual_temperature_step(1);
     return traits;
   }
