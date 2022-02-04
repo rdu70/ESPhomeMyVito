@@ -12,15 +12,20 @@
 // Uncomment to read all adresses - Take longer - No data on every systems
 //#define FULL_READ
 
+// --------------------------------------------------------------------------------------------------------------------
 // Global parameters
 const char* logname PROGMEM = "Vitotronic";
 
-const int maxparam = 99;
-const int statuslen = 22;
-const int maxreclen = 50;
+const int maxparam  = 99;     // Max number of parameters in param read arrays
+const int maxwrite  = 10;     // Max number of parameters in the write arrays
+const int maxreclen = 99;     // Receive buffer size
+const int statuslen = 22;     // Len of the status stream (2500, 3500 address)
+const int timelen   = 8;      // Len of the time & timers stream (088e; 2000..2030; 2100..2130; 2200..2230)
+
+char DayOfWeek[] = "Di\0Lu\0Ma\0Me\0Je\0Ve\0Sa\0Di\0";
 
 uint16_t paramaddr[maxparam] = {0x0800, 0x5525, 0x5527, 0x0802, 0x0810, 0x0896,                                  // Chauffage
-                                0x551E, 0x0883, 0x0842, 0x7574, 0x088A, 0x08A7, 0x2906, 0x0847, 0x2500,          // Bruleur+Status
+                                0x551E, 0x0883, 0x0842, 0x7574, 0x088A, 0x08A7, 0x2906, 0x0847,                  // Bruleur
                                 0x2301, 0x2302, 0x2303, 0x2304, 0x2305, 0x2306, 0x2307, 0x2308,                  // Modes+Consignes
                                 0x6300, 0x6760, 0x0804, 0x0812, 0x0845, 0x0846,                                  // ECS
                                 0x7507, 0x7510, 0x7519, 0x7522, 0x752b, 0x7534, 0x753d, 0x7546, 0x754f, 0x7558,  // Error codes
@@ -28,6 +33,7 @@ uint16_t paramaddr[maxparam] = {0x0800, 0x5525, 0x5527, 0x0802, 0x0810, 0x0896, 
                                 0x2100, 0x2108, 0x2110, 0x2118, 0x2120, 0x2128, 0x2130,                          // Timers Charge ECS
                                 0x2200, 0x2208, 0x2210, 0x2218, 0x2220, 0x2228, 0x2230,                          // Timers Boucle ECS
                                 0x088e,                                                                          // System Date & Time
+                                0x2500,                                                                          // Status
 #ifdef FULL_READ
                                 0x00f8, 0x55E3, 0x0849, 0x08AB, 0x254C, 0x5555, 0x2309, 0x0808,
                                 0xA309, 0x0814, 0x0816, 0x0818, 0x081a, 0x089f, 0x2544, 0x555a, 0x080A, 0x080C,
@@ -36,7 +42,7 @@ uint16_t paramaddr[maxparam] = {0x0800, 0x5525, 0x5527, 0x0802, 0x0810, 0x0896, 
                                 0};
 
 uint8_t paramlen[maxparam]   = {2,      2,      2,      2,      2,      2,
-                                1,      1,      1,      4,      4,      4,      1,      1,      statuslen,
+                                1,      1,      1,      4,      4,      4,      1,      1,
                                 1,      1,      1,      1,      1,      1,      1,      1,
                                 1,      1,      2,      2,      1,      1,
                                 1,      1,      1,      1,      1,      1,      1,      1,      1,      1,
@@ -44,6 +50,7 @@ uint8_t paramlen[maxparam]   = {2,      2,      2,      2,      2,      2,
                                 8,      8,      8,      8,      8,      8,      8,
                                 8,      8,      8,      8,      8,      8,      8,
                                 8,
+                                statuslen,
 #ifdef FULL_READ
                                 2,      1,      1,      4,      1,      1,      4,      2
                                 2,      2,      2,      2,      2,      2,      2,      2,      2,      2,
@@ -51,27 +58,36 @@ uint8_t paramlen[maxparam]   = {2,      2,      2,      2,      2,      2,
 #endif
                                 0};
 
-char paramtxt[maxparam][20]  = {"T Ext Sonde",  "T Ext Fltr",   "T Ext Moy", "T Chaud",       "T Chaud Fltr", "T Amb Fltr",
-                                "Bruleur",      "Disf bruleur", "Allure 1",  "Conso",         "Allumage",     "Temps Al. 1",   "Pompe Chauf",  "Faute",         "Status",
-                                "Mode",         "Eco",          "Fete",      "Offset",        "Pente",        "Consigne Norm", "Consigne Red", "Consigne Fete",
-                                "Consigne ECS", "Offset ECS",   "T Boiler",  "T Boiler Fltr", "Pompe Boiler", "Pompe Circ",
-                                "Error 1",      "Error 2",      "Error 3",   "Error 4",       "Error 5",      "Error 6",       "Error 7",      "Error 8",       "Error 9", "Error 10",
-                                "",             "",
+char paramtxt[maxparam][20]  = {"T Ext Sonde",  "T Ext Fltr",   "T Ext Moy",   "T Chaud",       "T Chaud Fltr", "T Amb Fltr",
+                                "Bruleur",      "Disf bruleur", "Allure 1",    "Conso",         "Allumage",     "Temps Al. 1",   "Pompe Chauf",  "Faute",
+                                "Mode",         "Eco",          "Fete",        "Offset",        "Pente",        "Consigne Norm", "Consigne Red", "Consigne Fete",
+                                "Consigne ECS", "Offset ECS",   "T Boiler",    "T Boiler Fltr", "Pompe Boiler", "Pompe Circ",
+                                "Error 1",      "Error 2",      "Error 3",     "Error 4",       "Error 5",      "Error 6",       "Error 7",      "Error 8",       "Error 9", "Error 10",
+                                "Tmr Ch.  J1",  "Tmr Ch.  J2", "Tmr Ch.  J3",   "Tmr Ch.  J4",  "Tmr Ch.  J5",   "Tmr Ch.  J6",  "Tmr Ch.  J7",
+                                "Tmr ECS. J1",  "Tmr ECS. J2", "Tmr ECS. J3",   "Tmr ECS. J4",  "Tmr ECS. J5",   "Tmr ECS. J6",  "Tmr ECS. J7",
+                                "Tmr Bcl. J1",  "Tmr Bcl. J2", "Tmr Bcl. J3",   "Tmr Bcl. J4",  "Tmr Bcl. J5",   "Tmr Bcl. J6",  "Tmr Bcl. J7",
+                                "Date/Time",
+                                "Status",
                                 "ID",   "",     "",     "",     "",     "",     "",     "T Fumée",
                                 "",     "",     "",     "",     "",     "",     "",     "",     "",     "",
                                 "",     "",     "",     "",     "",     "",     "",     "",     "",     "",
                                 ""};
 
+// --------------------------------------------------------------------------------------------------------------------
 // Globals vars
-uint16_t writeaddr;
-uint8_t writelen;    // 0, 1 or 2
-uint16_t writedata;
-uint8_t writeexec;  // States : 0:Nothing; 1:ExecWrite; 2:WriteDoneOk; 3:WriteDoneKO
+uint16_t writeaddr[maxwrite] = {0x2301, 0x2302, 0x2303, 0x2306, 0x2307, 0x2308, 0x6300, 0x0000};
+uint32_t writedata[maxwrite] = {0,      0,      0,      0,      0,      0,      0,      0};
+uint8_t  writelen[maxwrite]  = {0,      0,      0,      0,      0,      0,      0,      0};
+
+uint32_t paramvalue[maxparam];
+//uint8_t paramrecbuf[maxparam][statuslen];
+uint8_t paramreaded[maxparam];
 
 uint8_t param2500status[statuslen];
-uint32_t paramvalue[maxparam];
-uint8_t paramrecbuf[maxparam][statuslen];
-uint8_t paramreaded[maxparam];
+uint8_t systemtime[timelen];
+uint8_t heattimer[timelen][7];
+uint8_t ECStimer[timelen][7];
+uint8_t ECScyclingtimer[timelen][7];
 
 struct climate {
   float target = 0;
@@ -85,15 +101,6 @@ struct climate {
 struct climate heaterclimate;
 struct climate waterclimate;
 
-
-/*float target_temp = 0;
-float target_temp_last = 0;
-float current_temp = 0;
-float current_temp_last = 0;
-int vitomode = -1;
-int vitomode_last = -1;
-*/
-
 int txtupdate = 0;
 int binupdate = 0;
 
@@ -104,11 +111,13 @@ bool eco_mode = false;
 bool reception_mode = false;
 bool water_priority = false;
 
+// --------------------------------------------------------------------------------------------------------------------
 // Global functions
 void initvalue(){
   for (int idx = 0; idx < maxparam; idx++) {
     paramvalue[idx] = 0;
-    for (int idx2 = 0; idx2 < statuslen; idx2++) paramrecbuf[idx][idx2] = 0;
+    paramreaded[idx] = 0;
+//    for (int idx2 = 0; idx2 < statuslen; idx2++) paramrecbuf[idx][idx2] = 0;
   }
   for (int idx = 0; idx < statuslen; idx++) param2500status[idx] = 0;
 }
@@ -137,6 +146,28 @@ void setvalue(uint16_t addr, uint32_t val){
     if (paramaddr[idx] == addr) paramvalue[idx] = val;
     idx++;
   }
+  idx = 0;
+  while ((writeaddr[idx] != 0) && (idx < maxwrite)) {
+    if ((writeaddr[idx] == addr) && (writelen[idx] == 0)) writedata[idx] = val; //Keep updated if no write request
+    idx++;
+  }
+}
+
+void dowrite(uint16_t addr, uint32_t val, uint8_t len){
+  uint8_t idx = 0;
+  while ((paramaddr[idx] != 0) && (idx < maxwrite)) {
+    if (writeaddr[idx] == addr) { writedata[idx] = val; writelen[idx] = len; }
+    idx++;
+  }
+}
+
+int haswrite(){
+  uint8_t idx = 0;
+  while ((writeaddr[idx] != 0) && (idx < maxwrite)) {
+    if (writelen[idx] != 0) return idx;
+    idx++;
+  }
+  return -1;
 }
 
 int getsigned(int ivalue) {
@@ -153,6 +184,40 @@ void getstatus() {
   water_priority = (b250a == 0) && ((b2509 == 3) || (b2509 == 4));
 }
 
+bool systemtimetotext(char *St) {
+  uint8_t dayofweeknb = systemtime[4];
+  if ((dayofweeknb >= 1) && (dayofweeknb <= 7) && ((systemtime[0] == 0x20) || (systemtime[0] == 0x19))) {
+    sprintf(St, "%2s %02x-%02x-%x%02x %02x:%02x:%02x", &DayOfWeek[3*dayofweeknb],
+                systemtime[3], systemtime[2], systemtime[0], systemtime[1],
+                systemtime[5], systemtime[6], systemtime[7]);
+    return true;
+  } else {
+    strcpy(St, "");  // Invalid date/time
+    return false;
+  }
+}
+
+void bytetotimer(char *St, uint8_t b) {
+  uint8_t h = b / 8;
+  uint8_t m = b % 8 * 10;
+  if (b != 0xff) sprintf(St, "%02d:%02d ", h, m); else strcpy(St, "--:-- ");
+}
+
+
+bool timertotext(char *St, uint8_t Timer[]) {
+  uint8_t dayofweeknb = systemtime[4];
+  if ((dayofweeknb >= 1) && (dayofweeknb <= 7) && ((systemtime[0] == 0x20) || (systemtime[0] == 0x19))) {
+    for (int i = 0; i < 8; i++) bytetotimer(&St[i*6], Timer[i]);
+    return true;
+  } else {
+    strcpy(St, "");  // Invalid date/time
+    return false;
+  }
+}
+
+
+
+// --------------------------------------------------------------------------------------------------------------------
 // Binary sensors class
 class MyVitoBinarySensorsComponent : public Component, public BinarySensor {
 private:
@@ -174,7 +239,7 @@ public:
   // Mode sensors
   BinarySensor *HeaterDefault_sensor = new BinarySensor();
   BinarySensor *HeaterEco_sensor = new BinarySensor();
-  BinarySensor *HeateReception_sensor = new BinarySensor();
+  BinarySensor *HeaterReception_sensor = new BinarySensor();
 
   void loop() override {
     if (binupdate != 0) {
@@ -195,7 +260,7 @@ public:
       // Modes
       ivalue = getvalue(0x0847);  if (ivalue>=0 && ivalue<=255) HeaterDefault_sensor->publish_state((ivalue != 0)); 
       ivalue = getvalue(0x2302);  if (ivalue>=0 && ivalue<=255) HeaterEco_sensor->publish_state((ivalue != 0)); 
-      ivalue = getvalue(0x2303);  if (ivalue>=0 && ivalue<=255) HeateReception_sensor->publish_state((ivalue != 0)); 
+      ivalue = getvalue(0x2303);  if (ivalue>=0 && ivalue<=255) HeaterReception_sensor->publish_state((ivalue != 0)); 
 
       binupdate = 0;
     }
@@ -203,13 +268,19 @@ public:
 };
 
 
+// --------------------------------------------------------------------------------------------------------------------
 // Text sensors class
 class MyVitoTextSensorsComponent : public Component, public TextSensor {
 public:
   TextSensor *ModeTxt_sensor = new TextSensor();
   TextSensor *SetTxt_sensor = new TextSensor();
+  TextSensor *SystemTimeTxt_sensor = new TextSensor();
+  TextSensor *HeatTimerTxt_sensor = new TextSensor();
+  TextSensor *ECSTimerTxt_sensor = new TextSensor();
+  TextSensor *ECSCyclingTimerTxt_sensor = new TextSensor();
   
   void loop() override {
+    char St[255];
     if (txtupdate != 0) {
       getstatus();
       char StMode[20]; strcpy(StMode, "Unknown");
@@ -231,12 +302,20 @@ public:
         if (water_priority) strcpy(StSet, "ECS");
       }
       SetTxt_sensor->publish_state(StSet);
+
+      if (systemtimetotext(St)) {
+        SystemTimeTxt_sensor->publish_state(St);
+        timertotext(St, &heattimer[0][1]);
+        HeatTimerTxt_sensor->publish_state(St);
+      }
+
       txtupdate = 0;
     }
   }
 };
 
 
+// --------------------------------------------------------------------------------------------------------------------
 // Sensor Class - Manage numerical sensors and communication protocol
 class MyVitoSensorsComponent : public PollingComponent, public Sensor {
 private:
@@ -260,7 +339,9 @@ private:
   uint8_t cmd;
   uint16_t addr;
   uint8_t len;
-  char readbuffer[maxreclen];
+  uint32_t data;
+  uint8_t writeidx;
+  uint8_t readbuffer[maxreclen];
 
   // Other vars
   uint8_t paramidx;
@@ -389,7 +470,8 @@ public:
 
   // main loop
   void loop() override {
-   char St[3*maxreclen+1];
+   char StHex[2*maxreclen+1];
+   char St[80];
    char Hex[2];
    float fvalue;
 
@@ -520,12 +602,25 @@ public:
              for (int i = 1; i < readidx; i++) paramvalue[paramidx-1] += readbuffer[i] << 8*i;
              if (addr == 0x2500) memcpy(param2500status, readbuffer, sizeof(param2500status));
              if (readidx > 4){
-               St[0] = 0;
+               StHex[0] = 0;
                for (int i = 0; i < readidx; i++) {
                  sprintf(Hex, "%02X", readbuffer[i]);
-                 St[3*i]=Hex[0]; St[3*i+1]=Hex[1]; St[3*i+2]=' '; St[3*i+3]=0;
+                 StHex[3*i]=Hex[0]; StHex[3*i+1]=Hex[1]; StHex[3*i+2]=' '; StHex[3*i+3]=0;
                }
-               ESP_LOGD(logname, "Readed addr %04x : %02d (%02d) byte(s) - %-13s - Hex: %s", addr, readidx, len, paramtxt[paramidx-1], St);
+               St[0] = 0;
+               if (addr == 0x088e) {
+                 if (!(readbuffer[4] >=0 && readbuffer[4] <=7)) readbuffer[4] = 0;
+                 memcpy(systemtime, readbuffer, 8);
+                 systemtimetotext(St);
+               }
+               if (((addr & 0xfcc0) == 0x2000) && (readidx == 8)) {
+                 timertotext(St, &readbuffer[0]);
+                 memcpy(&heattimer[0][1], &readbuffer[0], 8);
+//                 for (int i = 0; i < readidx; i++) {
+//                   bytetotimer(&St[i*6], readbuffer[i]);
+//                 }
+               }
+               ESP_LOGD(logname, "Readed addr %04x : %02d (%02d) byte(s) - %-13s - Hex: %s %s", addr, readidx, len, paramtxt[paramidx-1], StHex, St);
              }
              else
                ESP_LOGD(logname, "Readed addr %04x : %02d (%02d) byte(s) - %-13s - Hex: %8x  Dec: %10d", addr, readidx, len,
@@ -563,11 +658,13 @@ public:
 
       case 102: { // wait next cycle (last+60s)
         while (com->available()) readcom();  // clean rec buffer
-        if (writeexec == 1) {
+//        if (writeexec == 1) {
+        if (haswrite() != -1) {
           state = 200; // Start write
           synced = 0;
         }
-        if ((millis() - lastpollms)>60000) { // Timeout
+
+          if ((millis() - lastpollms)>60000) { // Timeout
           state = 0;
           synced = 0;
           lastpollms = millis();
@@ -581,19 +678,22 @@ public:
       case 200: {
 
         cmd = 0xf4;      // Write
-        addr = writeaddr;
-        len = writelen;
 
-        if (getvalue(addr) != writedata) {
+        writeidx = haswrite(); 
+        addr = writeaddr[writeidx];
+        len = writelen[writeidx];
+        data = writedata[writeidx];
 
-          ESP_LOGD(logname, "Write %d bytes to %d : %d (was %d)", len, addr, writedata, getvalue(addr));
+        if (getvalue(addr) != data) {
+
+          ESP_LOGD(logname, "Write %d bytes to %04x : %d (was %d)", len, addr, data, getvalue(addr));
 
           while (com->available()) readcom();  // clean rec buffer
           if ((addr == 0) && (len == 0)) {
             setdelay(1000);
             state = 101;
             paramidx = 0;
-            writeexec = 3;
+//            writeexec = 3;
           }
           else if (synced == 0){
             state = 201;
@@ -604,11 +704,12 @@ public:
             setdelay(10);
           }
         } else {
-          ESP_LOGD(logname, "No Write %d bytes to %d : %d (same data)", len, addr, writedata);
+          ESP_LOGD(logname, "No Write %d bytes to %04x : %d (same data)", len, addr, data);
           setdelay(1000);
           state = 101;
           paramidx = 0;
-          writeexec = 3;
+          writelen[writeidx] = 0; // clean write request
+//          writeexec = 3;
         }
       }
       break;
@@ -647,10 +748,11 @@ public:
           writebuf[1]=(addr & 0xff00) >> 8;
           writebuf[2]=(addr & 0x00ff);
           writebuf[3]=len;
-          if (len == 1) { writebuf[4] = writedata & 0xff; }
-          if (len == 2) { writebuf[4] = writedata & 0xff00 >>8;   writebuf[5] = writedata & 0x00ff; }
+          if (len == 1) { writebuf[4] = data & 0xff; }
+          if (len == 2) { writebuf[4] = data & 0xff00 >>8;   writebuf[5] = data & 0x00ff; }
           writecom(writebuf, 4+len);
           state = 204;
+          writelen[writeidx] = 0;  // Cmd sent, remove from send list
           setdelay(10);
         }
       }
@@ -681,14 +783,14 @@ public:
         if (com->available()){
           c = readcom();
           if (c == 0) {
-            if (addr == 0x2306) { fvalue = writedata / 1.0f;   if (fvalue>=0 && fvalue<=99) heaterclimate.target = fvalue; }
-            if (addr == 0x6300) { fvalue = writedata / 1.0f;   if (fvalue>=0 && fvalue<=99) waterclimate.target = fvalue; }
-            setvalue(addr, writedata);
-            writeexec = 2;
+            if (addr == 0x2306) { fvalue = data / 1.0f;   if (fvalue>=0 && fvalue<=99) heaterclimate.target = fvalue; }
+            if (addr == 0x6300) { fvalue = data / 1.0f;   if (fvalue>=0 && fvalue<=99) waterclimate.target = fvalue; }
+            setvalue(addr, data);
+//            writeexec = 2;
             ESP_LOGD(logname, "Write OK");
             publish = 1;
           } else {
-            writeexec = 3;
+//            writeexec = 3;
             ESP_LOGD(logname, "Write error");
           }
           readidx = 1;
@@ -706,15 +808,11 @@ public:
 };
 
 
+// --------------------------------------------------------------------------------------------------------------------
 // API Class
 class MyVitoAPIComponent : public Component, public CustomAPIDevice {
  public:
   void setup() override {
-    writeexec = 0;
-    writelen = 0;
-    writedata = 0;
-    writeaddr = 0;
-
     // Declare a service "start_write_cycle"
     //  - Service will be called "esphome.<NODE_NAME>_start_write_cycle" in Home Assistant.
     //  - The service has three arguments (type inferred from method definition):
@@ -727,40 +825,32 @@ class MyVitoAPIComponent : public Component, public CustomAPIDevice {
 
   void on_start_write_cycle(int address, int datalen, int data) {
     if (datalen >= 0 && datalen <=2) {
-      if ((address == 0x2306 || address == 0x2307 || address == 0x2308) && datalen == 1 && data >=3 && data <= 35) {
-        writelen = datalen;
-        writedata = data;
-        writeaddr = address;
-        ESP_LOGD("vito_api", "Starting write cycle - SetTempUpdate");
-        writeexec = 1;
+      if ((datalen == 1) &&
+          (((address == 0x2306 || address == 0x2307 || address == 0x2308) && (data >=3 && data <= 35)) ||
+           ((address == 0x6300) && (data >=10 && data <= 60)))) {
+        dowrite(address, data, datalen);
+        ESP_LOGD("vito_api", "Starting write cycle - SetTemp Update %04x %d", address, data);
       }
       if (address == 0x2301 && datalen == 1 && (data == 0 || data == 3 || data == 5)) {
-        writelen = datalen;
-        writedata = data;
-        writeaddr = address;
+        dowrite(address, data, datalen);
         ESP_LOGD("vito_api", "Starting write cycle - Mode Set");
-        writeexec = 1;
       }
-      if (address == 0x2302 && datalen == 1 && data >=0 && data <= 1 && (getvalue(0x2303)==0)) {
-        writelen = datalen;
-        writedata = data;
-        writeaddr = address;
+      if (address == 0x2302 && datalen == 1 && data >=0 && data <= 1) {
+        dowrite(address, data, datalen);
+        if ((data == 1) && (getvalue(0x2303)==1)) dowrite(0x2303, 0, 1);
         ESP_LOGD("vito_api", "Starting write cycle - Eco mode");
-        writeexec = 1;
       }
-      if (address == 0x2303 && datalen == 1 && data >=0 && data <= 1 && (getvalue(0x2302)==0)) {
-        writelen = datalen;
-        writedata = data;
-        writeaddr = address;
+      if (address == 0x2303 && datalen == 1 && data >=0 && data <= 1) {
+        dowrite(address, data, datalen);
+        if ((data == 1) && (getvalue(0x2302)==1)) dowrite(0x2302, 0, 1);
         ESP_LOGD("vito_api", "Starting write cycle - Reception mode");
-        writeexec = 1;
       }
     }
-
   }
 };
 
 
+// --------------------------------------------------------------------------------------------------------------------
 // Climate Class for heating
 class MyVitoClimateComponent : public Component, public Climate {
  public:
@@ -797,11 +887,8 @@ class MyVitoClimateComponent : public Component, public Climate {
       // Send target temp to climate
       if (new_target >= 3 && new_target <= 30) {
         ESP_LOGD("vito_climate_heater", "Climate ctrl set target temp : %4.1f", new_target);
-        writelen = 1;
-        writedata = new_target;
-        writeaddr = 0x2306;
+        dowrite(0x2306, new_target, 1);
         ESP_LOGD("vito_climate_heater", "Starting write cycle - SetTempUpdate");
-        writeexec = 1;
         heaterclimate.target = new_target;
         this->target_temperature = new_target;
       } else {
@@ -824,6 +911,7 @@ class MyVitoClimateComponent : public Component, public Climate {
 };
 
 
+// --------------------------------------------------------------------------------------------------------------------
 // Climate Class for water generator
 class MyVitoWaterClimateComponent : public Component, public Climate {
  public:
@@ -861,11 +949,8 @@ class MyVitoWaterClimateComponent : public Component, public Climate {
       // Send target temp to climate
       if (new_target >= 10 && new_target <= 60) {
         ESP_LOGD("vito_climate_ECS", "Climate ctrl set water set temp : %4.1f", new_target);
-        writelen = 1;
-        writedata = new_target;
-        writeaddr = 0x6300;
+        dowrite(0x6300, new_target, 1);
         ESP_LOGD("vito_water_climate_ECS", "Starting write cycle - SetTempUpdate");
-        writeexec = 1;
         waterclimate.target = new_target;
         this->target_temperature = new_target;
       } else {

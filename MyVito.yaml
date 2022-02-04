@@ -172,7 +172,7 @@ binary_sensor:
                my_vito_bin->BurnerDefault_sensor,
                my_vito_bin->HeaterDefault_sensor,
                my_vito_bin->HeaterEco_sensor,
-               my_vito_bin->HeateReception_sensor
+               my_vito_bin->HeaterReception_sensor
              };
     binary_sensors:
       - name: "Priorité sanitaire"
@@ -204,11 +204,14 @@ text_sensor:
       auto my_vito_txt = new MyVitoTextSensorsComponent();
       App.register_component(my_vito_txt);
       return { my_vito_txt->ModeTxt_sensor,
-               my_vito_txt->SetTxt_sensor
+               my_vito_txt->SetTxt_sensor,
+               my_vito_txt->SystemTimeTxt_sensor,
+               my_vito_txt->HeatTimerTxt_sensor
              };
     text_sensors:
       - name: "Mode"
       - name: "Consigne" 
+      - name: "Date système"
 
 
 custom_component:
