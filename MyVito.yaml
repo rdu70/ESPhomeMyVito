@@ -206,13 +206,17 @@ text_sensor:
       return { my_vito_txt->ModeTxt_sensor,
                my_vito_txt->SetTxt_sensor,
                my_vito_txt->SystemTimeTxt_sensor,
-               my_vito_txt->HeatTimerTxt_sensor
+               my_vito_txt->HeatTimerTxt_sensor,
+               my_vito_txt->WaterTimerTxt_sensor,
+               my_vito_txt->WaterCyclingTimerTxt_sensor
              };
     text_sensors:
       - name: "Mode"
       - name: "Consigne" 
       - name: "Date système"
-
+      - name: "Programme chauffage"
+      - name: "Programme ECS"
+      - name: "Programme boucle"
 
 custom_component:
   - lambda: |-
