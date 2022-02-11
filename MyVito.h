@@ -94,6 +94,7 @@ uint8_t paramreaded[maxparam];
 
 uint8_t param2500status[statuslen];
 uint8_t systemtime[timelen];
+uint8_t vactimer[2][timelen];
 uint8_t heattimer[timercnt+1][timelen];  // 1..7; 0 not used to stick with dayidx
 uint8_t watertimer[timercnt+1][timelen];
 uint8_t watercyclingtimer[timercnt+1][timelen];
@@ -163,7 +164,7 @@ void setvalue(uint16_t addr, uint32_t val){
   }
 }
 
-void dowrite(uint16_t addr, uint32_t val, uint8_t len){
+void dowrite(uint16_t addr, uint32_t val, uint8_t len = 1){
   uint8_t idx = 0;
   while ((paramaddr[idx] != 0) && (idx < maxwrite)) {
     if (writeaddr[idx] == addr) { writedata[idx] = val; writelen[idx] = len; }
@@ -194,18 +195,18 @@ void getstatus() {
   water_priority = (b250a == 0) && ((b2509 == 3) || (b2509 == 4));
 }
 
-uint8_t getsystemtimedayidx() {
-  uint8_t dayidx = systemtime[4];
-  if ((dayidx >= 1) && (dayidx <= 7) && ((systemtime[0] == 0x20) || (systemtime[0] == 0x19))) return dayidx; // 1 (Monday) .. 7 (Sunday)
+uint8_t getsystemtimedayidx(uint8_t timebuf[timelen]) {
+  uint8_t dayidx = timebuf[4];
+  if ((dayidx >= 1) && (dayidx <= 7) && ((timebuf[0] == 0x20) || (timebuf[0] == 0x19))) return dayidx; // 1 (Monday) .. 7 (Sunday)
   else return 0; // invalid
 }
 
-bool systemtimetotext(char *St) {
-  uint8_t dayidx = getsystemtimedayidx();
+bool systemtimetotext(uint8_t timebuf[timelen], char *St) {
+  uint8_t dayidx = getsystemtimedayidx(timebuf);
   if (dayidx) {
     sprintf(St, "%2s %02x-%02x-%x%02x %02x:%02x:%02x", &DayOfWeek[3*dayidx],
-                systemtime[3], systemtime[2], systemtime[0], systemtime[1],
-                systemtime[5], systemtime[6], systemtime[7]);
+                timebuf[3], timebuf[2], timebuf[0], timebuf[1],
+                timebuf[5], timebuf[6], timebuf[7]);
     return true;
   } else {
     strcpy(St, "");  // Invalid date/time
@@ -221,7 +222,7 @@ void bytetotimer(char *St, uint8_t b) {
 
 
 bool timertotext(char *St, uint8_t Timer[], bool dash = false) {
-  uint8_t dayidx = getsystemtimedayidx();
+  uint8_t dayidx = getsystemtimedayidx(systemtime);
   memset(St, 0, 6*8+1);
   if (dayidx) {
     for (int i = 0; i < 8; i++) {
@@ -325,9 +326,9 @@ public:
       }
       SetTxt_sensor->publish_state(StSet);
 
-      uint8_t dayidx = getsystemtimedayidx();
+      uint8_t dayidx = getsystemtimedayidx(systemtime);
       if (dayidx) {
-        systemtimetotext(St);
+        systemtimetotext(systemtime, St);
         SystemTimeTxt_sensor->publish_state(St);
         timertotext(St, &heattimer[dayidx][0]);
         HeatTimerTxt_sensor->publish_state(St);
@@ -638,8 +639,20 @@ public:
                St[0] = 0;
                if ((addr == 0x088e) || (addr == 0x2309) || (addr == 0x2311)) {
                  if (!(readbuffer[4] >=0 && readbuffer[4] <=7)) readbuffer[4] = 0;
-                 memcpy(systemtime, readbuffer, 8);
-                 systemtimetotext(St);
+                 switch (addr) {
+                   case 0x088e:
+                     memcpy(systemtime, readbuffer, 8);
+                     systemtimetotext(systemtime, St);
+                     break;
+                   case 0x2309:
+                     memcpy(vactimer[0], readbuffer, 8);
+                     systemtimetotext(vactimer[0], St);
+                     break;
+                   case 0x2311:
+                     memcpy(vactimer[1], readbuffer, 8);
+                     systemtimetotext(vactimer[1], St);
+                     break;
+                 }
                }
                if (((addr & 0xfcc0) == 0x2000) && (addr < 0x22ff) && (readidx == 8)) {
                  uint8_t dayidx = ((addr & 0x0038) >> 3) + 1;  // 1..7
@@ -911,6 +924,26 @@ class MyVitoClimateComponent : public Component, public Climate {
       this->mode = mode;
       this->publish_state();
     }
+    if (call.get_preset().has_value()) {
+      // User requested preset change
+      ClimatePreset preset = *call.get_preset();
+      switch (preset) {
+        case CLIMATE_PRESET_ECO:
+          dowrite(0x2302, 1); dowrite(0x2303, 0);
+          ESP_LOGD("vito_climate_heater", "Climate preset to ECO");
+          break;
+        case CLIMATE_PRESET_COMFORT:
+          dowrite(0x2303, 1); dowrite(0x2302, 0);
+          ESP_LOGD("vito_climate_heater", "Climate preset to CONFORT");
+          break;
+        default:
+          preset = CLIMATE_PRESET_NONE;
+          dowrite(0x2302, 0); dowrite(0x2303, 0);
+          ESP_LOGD("vito_climate_heater", "Climate preset to NONE");
+          break;
+      }
+      //this->set_preset(preset);      
+    }
     if (call.get_target_temperature().has_value()) {
       // User requested target temperature change
       float new_target = *call.get_target_temperature();
@@ -932,7 +965,7 @@ class MyVitoClimateComponent : public Component, public Climate {
     auto traits = climate::ClimateTraits();
     traits.set_supports_current_temperature(true);
     traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_AUTO});
-    traits.set_supported_presets({climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_COMFORT});
+    traits.set_supported_presets({climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_COMFORT});
     traits.set_visual_min_temperature(10);
     traits.set_visual_max_temperature(30);
     traits.set_visual_temperature_step(1);
