@@ -12,6 +12,7 @@ Features :
 Hardware :
 * The interface can be easily build using an Infrared LED and an Infrared phototransistor.  More info here : https://github.com/openv/openv/wiki/Bauanleitung-ESP8266
 * Some pictures of the prototype:
+  
 ![Picture of the prototype](https://github.com/rdu70/ESPhomeMyVito/blob/master/docs/esp_proto.png)
 ![Picture of the optolink part](https://github.com/rdu70/ESPhomeMyVito/blob/master/docs/Optolink_front.png)
 ![Picture of the optolink part](https://github.com/rdu70/ESPhomeMyVito/blob/master/docs/Optolink_bottom.png)
