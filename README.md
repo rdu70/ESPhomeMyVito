@@ -1,7 +1,7 @@
 # MyVito for ESPHome
 
 
-This ESPHome config use custom components to handle communication with a Vitotronic 200 KW regulation through Optical Link interface.  ESPHome config done in YAML and a specific custom component in C.
+This ESPHome config use custom components to handle communication with a Vitotronic 200 KW regulation through Optical Link interface.  ESPHome config done in YAML and a specific custom component in C++.
 
 Features :
 
