@@ -3,7 +3,7 @@ substitutions:
   device_description: Vitotronic Monitoring system.
   friendly_name: MyVito
   
-
+  
 esphome:
   name: ${device_name}
   comment: ${device_description}
@@ -24,7 +24,7 @@ wifi:
     ssid: ${friendly_name}_AP
     password: !secret wifi_ap_password
 
-captive_portal:
+#captive_portal:
 
 # Enable logging on UART1
 logger:
@@ -36,10 +36,11 @@ api:
 
 # Enable OTA
 ota:
+  platform: esphome
 
 # Enable web server
-web_server:
-  port: 80
+#web_server:
+#  port: 80
 
 # Enable time component for use by daily power sensor
 time:
@@ -49,11 +50,14 @@ time:
 
 # Configure 1-Wire bus on PIN D1 and D2
 # Used to add more temperature sensors
-dallas:
-  - pin: D1
-    id: Hub1
-  - pin: D2
-    id: Hub2
+one_wire:
+#  - pin: D1
+#    id: Hub1
+#  - pin: D2
+#    id: Hub2
+  - pin: D3
+    platform: gpio
+    id: Hub3
 
 
 
@@ -67,32 +71,38 @@ sensor:
     name: "${friendly_name} uptime"
     filters:
       - lambda: return x / 60.0;
-    unit_of_measurement: minutes
+    unit_of_measurement: min
     id: system_uptime
 
-  - platform: dallas
-    dallas_id: Hub1
-    address: 0xA4000005EAC1A228
-    name: "Température chaufferie"
-    id: temp_boiler_room
+#  - platform: dallas
+#    dallas_id: Hub1
+#    address: 0xA4000005EAC1A228
+#    name: "Température chaufferie"
+#    id: temp_boiler_room
 
-  - platform: dallas
-    dallas_id: Hub1
-    address: 0x2F000002563D4628
-    name: "Température boiler (Haut)"
-    id: temp_waterboiler_top
+#  - platform: dallas
+#    dallas_id: Hub1
+#    address: 0x2F000002563D4628
+#    name: "Température boiler (Haut)"
+#    id: temp_waterboiler_top
 
-  - platform: dallas
-    dallas_id: Hub2
-    address: 0x7D000802080DAE10
-    name: "Température départ"
-    id: temp_heater_flow
+#  - platform: dallas
+#    dallas_id: Hub2
+#    address: 0x7D000802080DAE10
+#    name: "Température départ"
+#    id: temp_heater_flow
 
-  - platform: dallas
-    dallas_id: Hub2
-    address: 0xEA00080207E3EE10
-    name: "Température retour"
-    id: temp_heater_return
+#  - platform: dallas
+#    dallas_id: Hub2
+#    address: 0xEA00080207E3EE10
+#    name: "Température retour"
+#    id: temp_heater_return
+
+  - platform: dallas_temp
+    one_wire_id: Hub3
+    address: 0x430004340f8cff28
+    name: "Température fumée"
+    id: temp_exhaust
 
   - platform: custom
     lambda: |-
@@ -238,6 +248,19 @@ climate:
       visual:
         min_temperature: 15
         max_temperature: 27
+        temperature_step: 1.0
+
+- platform: custom
+  lambda: |-
+    auto my_vito_reduced_climate = new MyVitoReducedClimateComponent();
+    App.register_component(my_vito_reduced_climate);
+    return { my_vito_reduced_climate
+           };
+  climates:
+    - name: "Vitotronic Chauffage Reduit"
+      visual:
+        min_temperature: 3
+        max_temperature: 20
         temperature_step: 1.0
 
 - platform: custom

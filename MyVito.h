@@ -2,6 +2,7 @@
 // Author       : Romuald Dufour
 // License      : LGPL v2.1
 // Release      : 2022-02-01
+// Release      : 2024-11-09 - Fix string length bug
 
 #include <Arduino.h>
 #include "esphome.h"
@@ -110,6 +111,7 @@ struct climate {
 };
 
 struct climate heaterclimate;
+struct climate heaterreducedclimate;
 struct climate waterclimate;
 
 int txtupdate = 0;
@@ -305,7 +307,7 @@ public:
     char St[255];
     if (txtupdate != 0) {
       getstatus();
-      char StMode[20]; strcpy(StMode, "Unknown");
+      char StMode[30]; strcpy(StMode, "Unknown");
       if (current_mode == MODE_STANDBY) strcpy(StMode, "Veille");
       if (current_mode == MODE_HOTWATER) strcpy(StMode, "ECS");
       if (current_mode == MODE_HEATING) {
@@ -317,7 +319,7 @@ public:
       }
       if (b2509 == 1) strcpy(StMode, "Vacances");
       ModeTxt_sensor->publish_state(StMode);
-      char StSet[20]; strcpy(StSet, "Veille");
+      char StSet[30]; strcpy(StSet, "Veille");
       if ((current_mode == MODE_HEATING) && (b2509 != 1)) {
         if (b250a == 1) strcpy(StSet, "Normale");
         if (b250a == 3) strcpy(StSet, "Réduite");
@@ -422,7 +424,7 @@ public:
       fvalue = getsigned(getvalue(0x5527)) / 10.0f;  if (fvalue>=-30 && fvalue<=99) ExternalMeanTemperature_sensor->publish_state(fvalue);
 
       fvalue = getsigned(getvalue(0x2306)) / 1.0f;   if (fvalue>=0 && fvalue<=99) { NormalSetTemperature_sensor->publish_state(fvalue); heaterclimate.target = fvalue; }
-      fvalue = getsigned(getvalue(0x2307)) / 1.0f;   if (fvalue>=0 && fvalue<=99) ReducedSetTemperature_sensor->publish_state(fvalue);
+      fvalue = getsigned(getvalue(0x2307)) / 1.0f;   if (fvalue>=0 && fvalue<=99) { ReducedSetTemperature_sensor->publish_state(fvalue); heaterreducedclimate.target = fvalue; }
       fvalue = getsigned(getvalue(0x2308)) / 1.0f;   if (fvalue>=0 && fvalue<=99) ReceptionSetTemperature_sensor->publish_state(fvalue);
 
       fvalue = getsigned(getvalue(0x6300)) / 1.0f;   if (fvalue>=0 && fvalue<=99) { HotWaterSetTemperature_sensor->publish_state(fvalue); waterclimate.target = fvalue; }
@@ -475,7 +477,7 @@ public:
 
   void writecom(uint8_t *buf, uint8_t len){
     char St[2*maxreclen+1];
-    char Hex[2];
+    char Hex[3];
     St[0] = 0;
     for (int i=0; i<len; i++) {
       sprintf(Hex, "%02X", buf[i]);
@@ -501,7 +503,7 @@ public:
   void loop() override {
    char StHex[2*maxreclen+1];
    char St[80];
-   char Hex[2];
+   char Hex[3];
    float fvalue;
 
    if (state != laststate){
@@ -823,6 +825,7 @@ public:
           c = readcom();
           if (c == 0) {
             if (addr == 0x2306) { fvalue = data / 1.0f;   if (fvalue>=0 && fvalue<=99) heaterclimate.target = fvalue; }
+            if (addr == 0x2307) { fvalue = data / 1.0f;   if (fvalue>=0 && fvalue<=99) heaterreducedclimate.target = fvalue; }
             if (addr == 0x6300) { fvalue = data / 1.0f;   if (fvalue>=0 && fvalue<=99) waterclimate.target = fvalue; }
             setvalue(addr, data);
             ESP_LOGD(logname, "Write OK");
@@ -968,6 +971,70 @@ class MyVitoClimateComponent : public Component, public Climate {
     traits.set_supported_presets({climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_COMFORT});
     traits.set_visual_min_temperature(10);
     traits.set_visual_max_temperature(30);
+    traits.set_visual_temperature_step(1);
+    return traits;
+  }
+};
+
+
+// --------------------------------------------------------------------------------------------------------------------
+// Climate Class for heating Reduced
+class MyVitoReducedClimateComponent : public Component, public Climate {
+ public:
+  void setup() override {
+  }
+
+  void loop() override {
+    if ((heaterreducedclimate.target != heaterreducedclimate.target_last) || (heaterreducedclimate.current != heaterreducedclimate.current_last)) {
+      heaterreducedclimate.target_last = heaterreducedclimate.target;
+      this->target_temperature = heaterreducedclimate.target;
+      heaterreducedclimate.current_last = heaterreducedclimate.current;
+      this->current_temperature = heaterreducedclimate.current;
+      this->publish_state();
+    }
+  }
+
+  void control(const ClimateCall &call) override {
+    if (call.get_mode().has_value()) {
+      // User requested mode change
+    }
+    if (call.get_preset().has_value()) {
+      // User requested preset change
+      ClimatePreset preset = *call.get_preset();
+      switch (preset) {
+        case CLIMATE_PRESET_ECO:
+          break;
+        case CLIMATE_PRESET_COMFORT:
+          break;
+        default:
+          break;
+      }
+      //this->set_preset(preset);      
+    }
+    if (call.get_target_temperature().has_value()) {
+      // User requested target temperature change
+      float new_target = *call.get_target_temperature();
+      // Send target temp to climate
+      if (new_target >= 3 && new_target <= 20) {
+        ESP_LOGD("vito_climate_heater", "Climate Reduced ctrl set target temp : %4.1f", new_target);
+        dowrite(0x2307, new_target, 1);
+        ESP_LOGD("vito_Reduced climate_heater", "Starting write cycle - SetTempUpdate");
+        heaterreducedclimate.target = new_target;
+        this->target_temperature = new_target;
+      } else {
+        ESP_LOGD("vito_climate_heater", "Temperature requested out of range");
+      }
+    }
+  }
+
+  ClimateTraits traits() override {
+    // The capabilities of the climate device
+    auto traits = climate::ClimateTraits();
+    traits.set_supports_current_temperature(true);
+    traits.set_supported_modes({climate::CLIMATE_MODE_AUTO});
+    traits.set_supported_presets({climate::CLIMATE_PRESET_NONE});
+    traits.set_visual_min_temperature(3);
+    traits.set_visual_max_temperature(20);
     traits.set_visual_temperature_step(1);
     return traits;
   }
